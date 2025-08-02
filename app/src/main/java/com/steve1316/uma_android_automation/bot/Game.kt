@@ -51,6 +51,7 @@ class Game(val myContext: Context) {
 	private var statPrioritization: List<String> = sharedPreferences.getString("statPrioritization", "")!!.split("|")
 	private val enablePrioritizeEnergyOptions: Boolean = sharedPreferences.getBoolean("enablePrioritizeEnergyOptions", false)
 	private val maximumFailureChance: Int = sharedPreferences.getInt("maximumFailureChance", 15)
+	private val disableTrainingOnMaxedStat: Boolean = sharedPreferences.getBoolean("disableTrainingOnMaxedStat", true)
 	private var firstTrainingCheck = true
 	private var previouslySelectedTraining = ""
 	
@@ -598,7 +599,7 @@ class Game(val myContext: Context) {
 		// Grab the training with the maximum weight.
 		trainingMap.forEach { (statName, map) ->
 			// Skip training if the stat is maxed out.
-			if (statValueMap[statName]!! >= 1200) {
+			if (!disableTrainingOnMaxedStat && statValueMap[statName]!! >= 1200) {
 				printToLog("[TRAINING] Training for $statName will be skipped due to it already being at ${statValueMap[statName]}.")
 				return@forEach
 			}
