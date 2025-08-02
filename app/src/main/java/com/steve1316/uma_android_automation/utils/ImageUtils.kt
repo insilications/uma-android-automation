@@ -588,6 +588,56 @@ class ImageUtils(context: Context, private val game: Game) {
 		return matchLocations
 	}
 
+	/**
+	 * Convert absolute x-coordinate on 1080p to relative coordinate on different resolutions for the width.
+	 *
+	 * @param oldX The old absolute x-coordinate based off of the 1080p resolution.
+	 * @return The new relative x-coordinate based off of the current resolution.
+	 */
+	fun relWidth(oldX: Int): Int {
+		return if (isDefault) {
+			oldX
+		} else {
+			(oldX.toDouble() * (displayWidth.toDouble() / 1080.0)).toInt()
+		}
+	}
+
+	/**
+	 * Convert absolute y-coordinate on 1080p to relative coordinate on different resolutions for the height.
+	 *
+	 * @param oldY The old absolute y-coordinate based off of the 1080p resolution.
+	 * @return The new relative y-coordinate based off of the current resolution.
+	 */
+	fun relHeight(oldY: Int): Int {
+		return if (isDefault) {
+			oldY
+		} else {
+			(oldY.toDouble() * (displayHeight.toDouble() / 2340.0)).toInt()
+		}
+	}
+
+	/**
+	 * Helper function to calculate the x-coordinate with relative offset.
+	 *
+	 * @param baseX The base x-coordinate.
+	 * @param offset The offset to add/subtract from the base coordinate and to make relative to.
+	 * @return The calculated relative x-coordinate.
+	 */
+	fun relX(baseX: Double, offset: Int): Int {
+		return baseX.toInt() + relWidth(offset)
+	}
+
+	/**
+	 * Helper function to calculate relative y-coordinate with relative offset.
+	 *
+	 * @param baseY The base y-coordinate.
+	 * @param offset The offset to add/subtract from the base coordinate and to make relative to.
+	 * @return The calculated relative y-coordinate.
+	 */
+	fun relY(baseY: Double, offset: Int): Int {
+		return baseY.toInt() + relHeight(offset)
+	}
+
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 
@@ -1215,56 +1265,6 @@ class ImageUtils(context: Context, private val game: Game) {
 			Log.d(tag, "This race has no double prediction.")
 			return -1
 		}
-	}
-
-	/**
-	 * Convert absolute x-coordinate on 1080p to relative coordinate on different resolutions for the width.
-	 *
-	 * @param oldX The old absolute x-coordinate based off of the 1080p resolution.
-	 * @return The new relative x-coordinate based off of the current resolution.
-	 */
-	fun relWidth(oldX: Int): Int {
-		return if (isDefault) {
-			oldX
-		} else {
-			(oldX.toDouble() * (displayWidth.toDouble() / 1080.0)).toInt()
-		}
-	}
-
-	/**
-	 * Convert absolute y-coordinate on 1080p to relative coordinate on different resolutions for the height.
-	 *
-	 * @param oldY The old absolute y-coordinate based off of the 1080p resolution.
-	 * @return The new relative y-coordinate based off of the current resolution.
-	 */
-	fun relHeight(oldY: Int): Int {
-		return if (isDefault) {
-			oldY
-		} else {
-			(oldY.toDouble() * (displayHeight.toDouble() / 2340.0)).toInt()
-		}
-	}
-
-	/**
-	 * Helper function to calculate the x-coordinate with relative offset.
-	 *
-	 * @param baseX The base x-coordinate.
-	 * @param offset The offset to add/subtract from the base coordinate and to make relative to.
-	 * @return The calculated relative x-coordinate.
-	 */
-	fun relX(baseX: Double, offset: Int): Int {
-		return baseX.toInt() + relWidth(offset)
-	}
-
-	/**
-	 * Helper function to calculate relative y-coordinate with relative offset.
-	 *
-	 * @param baseY The base y-coordinate.
-	 * @param offset The offset to add/subtract from the base coordinate and to make relative to.
-	 * @return The calculated relative y-coordinate.
-	 */
-	fun relY(baseY: Double, offset: Int): Int {
-		return baseY.toInt() + relHeight(offset)
 	}
 
 	/**
