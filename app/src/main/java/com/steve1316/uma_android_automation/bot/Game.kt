@@ -60,6 +60,7 @@ class Game(val myContext: Context) {
 	// Racing
 	private val enableFarmingFans = sharedPreferences.getBoolean("enableFarmingFans", false)
 	private val daysToRunExtraRaces: Int = sharedPreferences.getInt("daysToRunExtraRaces", 4)
+	private val disableRaceRetries: Boolean = sharedPreferences.getBoolean("disableRaceRetries", false)
 	private var raceRetries = 3
 	private var raceRepeatWarningCheck = false
 	var encounteredRacingPopup = false
@@ -1072,7 +1073,13 @@ class Game(val myContext: Context) {
 			tap(350.0, 450.0, "ok", taps = 3)
 			
 			// Check if the race needed to be retried.
-			if (findAndTapImage("race_retry", tries = 5, region = imageUtils.regionBottomHalf, suppressError = true)) {
+			if (imageUtils.findImage("race_retry", tries = 5, region = imageUtils.regionBottomHalf, suppressError = true).first != null) {
+				if (disableRaceRetries) {
+					printToLog("\n[END] Stopping the bot due to failing a mandatory race.")
+					notificationMessage = "Stopping the bot due to failing a mandatory race."
+					throw IllegalStateException()
+				}
+				findAndTapImage("race_retry", tries = 1, region = imageUtils.regionBottomHalf, suppressError = true)
 				printToLog("[RACE] The skipped race failed and needs to be run again. Attempting to retry...")
 				wait(3.0)
 				raceRetries--
@@ -1144,7 +1151,13 @@ class Game(val myContext: Context) {
 			wait(1.0)
 			
 			// Check if the race needed to be retried.
-			if (findAndTapImage("race_retry", tries = 5, region = imageUtils.regionBottomHalf, suppressError = true)) {
+			if (imageUtils.findImage("race_retry", tries = 5, region = imageUtils.regionBottomHalf, suppressError = true).first != null) {
+				if (disableRaceRetries) {
+					printToLog("\n[END] Stopping the bot due to failing a mandatory race.")
+					notificationMessage = "Stopping the bot due to failing a mandatory race."
+					throw IllegalStateException()
+				}
+				findAndTapImage("race_retry", tries = 1, region = imageUtils.regionBottomHalf, suppressError = true)
 				printToLog("[RACE] Manual race failed and needs to be run again. Attempting to retry...")
 				wait(5.0)
 				raceRetries--
