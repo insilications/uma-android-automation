@@ -929,7 +929,7 @@ class Game(val myContext: Context) {
 			// If there is a popup warning about repeating races 3+ times, stop the process and do something else other than racing.
 			if (imageUtils.findImage("race_repeat_warning").first != null) {
 				raceRepeatWarningCheck = true
-				printToLog("\n[RACE] Closing popup warning of doing more than 3+ races and setting flag to prevent racing for now.")
+				printToLog("\n[RACE] Closing popup warning of doing more than 3+ races and setting flag to prevent racing for now. Canceling the racing process and doing something else.")
 				findAndTapImage("cancel", region = imageUtils.regionBottomHalf)
 				return false
 			}
@@ -938,7 +938,7 @@ class Game(val myContext: Context) {
 			// Swipe up the list to get to the top and then select the first option.
 			val statusLocation = imageUtils.findImage("race_status").first
 			if (statusLocation == null) {
-				printToLog("[WARNING] Unable to determine existence of list of extra races.")
+				printToLog("[ERROR] Unable to determine existence of list of extra races. Canceling the racing process and doing something else.", isError = true)
 				return false
 			}
 			gestureUtils.swipe(statusLocation.x.toFloat(), statusLocation.y.toFloat() + 300, statusLocation.x.toFloat(), statusLocation.y.toFloat() + 888)
@@ -949,7 +949,7 @@ class Game(val myContext: Context) {
 			var count = 0
 			val maxCount = imageUtils.findAll("race_selection_fans", region = imageUtils.regionBottomHalf).size
 			if (maxCount == 0) {
-				printToLog("[WARNING] Was unable to find any extra races to select. Moving on...")
+				printToLog("[WARNING] Was unable to find any extra races to select. Canceling the racing process and doing something else.", isError = true)
 				return false
 			} else {
 				printToLog("[RACE] There are $maxCount extra race options currently on screen.")
@@ -961,7 +961,7 @@ class Game(val myContext: Context) {
 				// Save the location of the selected extra race.
 				val selectedExtraRace = imageUtils.findImage("race_extra_selection", region = imageUtils.regionBottomHalf).first
 				if (selectedExtraRace == null) {
-					printToLog("[ERROR] Unable to find the location of the selected extra race. Will skip racing...", isError = true)
+					printToLog("[ERROR] Unable to find the location of the selected extra race. Canceling the racing process and doing something else.", isError = true)
 					break
 				}
 				extraRaceLocation.add(selectedExtraRace)
@@ -994,7 +994,7 @@ class Game(val myContext: Context) {
 			val maxFans: Int? = listOfFans.maxOrNull()
 			if (maxFans != null) {
 				if (maxFans == -1) {
-					printToLog("[WARNING] Max fans was returned as -1.")
+					printToLog("[WARNING] Max fans was returned as -1. Canceling the racing process and doing something else.")
 					findAndTapImage("back", tries = 5, region = imageUtils.regionBottomHalf)
 					return false
 				}
@@ -1011,7 +1011,7 @@ class Game(val myContext: Context) {
 				printToLog("[RACE] Selecting the first extra race on the list by default.")
 				tap(extraRaceLocation[0].x - imageUtils.relWidth((100 * 1.36).toInt()), extraRaceLocation[0].y - imageUtils.relHeight(70), "race_extra_selection")
 			} else {
-				printToLog("[WARNING] No extra races detected and thus no fan maximums were calculated.")
+				printToLog("[WARNING] No extra races detected and thus no fan maximums were calculated. Canceling the racing process and doing something else.")
 				findAndTapImage("back", tries = 5, region = imageUtils.regionBottomHalf)
 				return false
 			}
