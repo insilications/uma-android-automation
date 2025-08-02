@@ -33,6 +33,7 @@ object SettingsPrinter {
 		val trainingBlacklist: Set<String> = sharedPreferences.getStringSet("trainingBlacklist", setOf<String>()) as Set<String>
 		var statPrioritization: List<String> = sharedPreferences.getString("statPrioritization", "")!!.split("|")
 		val maximumFailureChance: Int = sharedPreferences.getInt("maximumFailureChance", 15)
+		val disableTrainingOnMaxedStat: Boolean = sharedPreferences.getBoolean("disableTrainingOnMaxedStat", true)
 		
 		// Training Event Settings
 		val character = sharedPreferences.getString("character", "Please select one in the Training Event Settings")!!
@@ -114,6 +115,7 @@ object SettingsPrinter {
 			appendLine("Training Blacklist: $trainingBlacklistString")
 			appendLine(statPrioritizationString)
 			appendLine("Maximum Failure Chance Allowed: $maximumFailureChance%")
+			appendLine("Disable Training on Maxed Stat: ${if (disableTrainingOnMaxedStat) "✅" else "❌"}")
 			appendLine()
 			appendLine("---------- Tesseract OCR Optimization ----------")
 			appendLine("OCR Threshold: $threshold")
