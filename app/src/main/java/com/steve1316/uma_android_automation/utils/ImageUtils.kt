@@ -126,6 +126,12 @@ class ImageUtils(context: Context, private val game: Game) {
 		val confidence: Double
 	)
 
+	data class BarFillResult(
+		val fillPercent: Double,
+		val filledSegments: Int,
+		val dominantColor: String
+	)
+
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 
@@ -807,6 +813,40 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
+	 * Find all occurrences of the specified image in the images folder using a provided source bitmap. Useful for parallel processing to avoid exceeding the maxImages buffer.
+	 *
+	 * @param templateName File name of the template image.
+	 * @param sourceBitmap The source bitmap to search in.
+	 * @param region Specify the region consisting of (x, y, width, height) of the source screenshot to template match. Defaults to (0, 0, 0, 0) which is equivalent to searching the full image.
+	 * @return An ArrayList of Point objects containing all the occurrences of the specified image or null if not found.
+	 */
+	private fun findAllWithBitmap(templateName: String, sourceBitmap: Bitmap, region: IntArray = intArrayOf(0, 0, 0, 0)): ArrayList<Point> {
+		var templateBitmap: Bitmap?
+		myContext.assets?.open("images/$templateName.png").use { inputStream ->
+			templateBitmap = BitmapFactory.decodeStream(inputStream)
+		}
+
+		// Clear the ArrayList first before attempting to find all matches.
+		matchLocations.clear()
+
+		if (templateBitmap != null) {
+			matchAll(sourceBitmap, templateBitmap, region = region)
+		}
+
+		// Sort the match locations by ascending x and y coordinates.
+		matchLocations.sortBy { it.x }
+		matchLocations.sortBy { it.y }
+
+		if (debugMode) {
+			game.printToLog("[DEBUG] Found match locations for $templateName: $matchLocations.", tag = tag)
+		} else {
+			Log.d(tag, "[DEBUG] Found match locations for $templateName: $matchLocations.")
+		}
+
+		return matchLocations
+	}
+
+	/**
 	 * Check if the color at the specified coordinates matches the given RGB value.
 	 *
 	 * @param x X coordinate to check.
@@ -1328,7 +1368,154 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
+	 * Analyze the relationship bars on the Training screen for the currently selected training.
 	 *
+	 * @return A list of the results for each relationship bar.
+	 */
+	fun analyzeRelationshipBars(): ArrayList<BarFillResult> {
+		val customRegion = intArrayOf(displayWidth - (displayWidth / 3), 0, (displayWidth / 3), displayHeight - (displayHeight / 3))
+
+		// Take a single screenshot first to avoid buffer overflow.
+		val (sourceBitmap, _) = getBitmaps("stat_maxed")
+		
+		var allStatBlocks = mutableListOf<Point>()
+
+		val latch = CountDownLatch(5)
+		
+		// Create arrays to store results from each thread.
+		val speedBlocks = arrayListOf<Point>()
+		val staminaBlocks = arrayListOf<Point>()
+		val powerBlocks = arrayListOf<Point>()
+		val gutsBlocks = arrayListOf<Point>()
+		val witBlocks = arrayListOf<Point>()
+		
+		// Start parallel threads for each findAll call, passing the same source bitmap.
+		Thread {
+			speedBlocks.addAll(findAllWithBitmap("stat_speed_block", sourceBitmap, region = customRegion))
+			latch.countDown()
+		}.start()
+		
+		Thread {
+			staminaBlocks.addAll(findAllWithBitmap("stat_stamina_block", sourceBitmap, region = customRegion))
+			latch.countDown()
+		}.start()
+		
+		Thread {
+			powerBlocks.addAll(findAllWithBitmap("stat_power_block", sourceBitmap, region = customRegion))
+			latch.countDown()
+		}.start()
+		
+		Thread {
+			gutsBlocks.addAll(findAllWithBitmap("stat_guts_block", sourceBitmap, region = customRegion))
+			latch.countDown()
+		}.start()
+		
+		Thread {
+			witBlocks.addAll(findAllWithBitmap("stat_wit_block", sourceBitmap, region = customRegion))
+			latch.countDown()
+		}.start()
+		
+		// Wait for all threads to complete.
+		try {
+			latch.await(10, TimeUnit.SECONDS)
+		} catch (_: InterruptedException) {
+			game.printToLog("[ERROR] Parallel findAll operations timed out.", tag = tag, isError = true)
+		}
+		
+		// Combine all results.
+		allStatBlocks.addAll(speedBlocks)
+		allStatBlocks.addAll(staminaBlocks)
+		allStatBlocks.addAll(powerBlocks)
+		allStatBlocks.addAll(gutsBlocks)
+		allStatBlocks.addAll(witBlocks)
+
+		// Filter out duplicates based on exact coordinate matches.
+		allStatBlocks = allStatBlocks.distinctBy { "${it.x},${it.y}" }.toMutableList()
+
+		// Sort the combined stat blocks by ascending y-coordinate.
+		allStatBlocks.sortBy { it.y }
+
+		// Define HSV color ranges.
+		val blueLower = Scalar(10.0, 150.0, 150.0)
+		val blueUpper = Scalar(25.0, 255.0, 255.0)
+		val greenLower = Scalar(40.0, 150.0, 150.0)
+		val greenUpper = Scalar(80.0, 255.0, 255.0)
+		val orangeLower = Scalar(100.0, 150.0, 150.0)
+		val orangeUpper = Scalar(130.0, 255.0, 255.0)
+
+		val (_, maxedTemplateBitmap) = getBitmaps("stat_maxed")
+		val results = arrayListOf<BarFillResult>()
+
+		for ((index, statBlock) in allStatBlocks.withIndex()) {
+			if (debugMode) game.printToLog("[DEBUG] Processing stat block #${index + 1} at position: (${statBlock.x}, ${statBlock.y})", tag = tag)
+
+			val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(statBlock.x, -9), relY(statBlock.y, 107), 111, 13)
+			if (match(croppedBitmap, maxedTemplateBitmap!!, "stat_maxed")) {
+				// Skip if the relationship bar is already maxed.
+				if (debugMode) game.printToLog("[DEBUG] Relationship bar #${index + 1} is full.", tag = tag)
+				results.add(BarFillResult(100.0, 5, "orange"))
+				continue
+			}
+
+			val barMat = Mat()
+			Utils.bitmapToMat(croppedBitmap, barMat)
+
+			// Convert to RGB and then to HSV for better color detection.
+			val rgbMat = Mat()
+			Imgproc.cvtColor(barMat, rgbMat, Imgproc.COLOR_BGR2RGB)
+			if (debugMode) Imgcodecs.imwrite("$matchFilePath/debug_relationshipBar${index + 1}AfterRGB.png", rgbMat)
+			val hsvMat = Mat()
+			Imgproc.cvtColor(rgbMat, hsvMat, Imgproc.COLOR_RGB2HSV)
+
+			val blueMask = Mat()
+			val greenMask = Mat()
+			val orangeMask = Mat()
+
+			// Count the pixels for each color.
+			Core.inRange(hsvMat, blueLower, blueUpper, blueMask)
+			Core.inRange(hsvMat, greenLower, greenUpper, greenMask)
+			Core.inRange(hsvMat, orangeLower, orangeUpper, orangeMask)
+			val bluePixels = Core.countNonZero(blueMask)
+			val greenPixels = Core.countNonZero(greenMask)
+			val orangePixels = Core.countNonZero(orangeMask)
+			Log.d(tag, "Blue pixels: $bluePixels")
+			Log.d(tag, "Green pixels: $greenPixels")
+			Log.d(tag, "Orange pixels: $orangePixels")
+
+			// Sum the colored pixels.
+			val totalColoredPixels = bluePixels + greenPixels + orangePixels
+			val totalPixels = barMat.rows() * barMat.cols()
+			Log.d(tag, "Total colored pixels: $totalColoredPixels")
+			Log.d(tag, "Total pixels: $totalPixels")
+
+			// Estimate the fill percentage based on the total colored pixels.
+			val fillPercent = if (totalPixels > 0) {
+				(totalColoredPixels.toDouble() / totalPixels.toDouble()) * 100.0
+			} else 0.0
+
+			// Estimate the filled segments (each segment is about 20% of the whole bar).
+			val filledSegments = (fillPercent / 20).coerceAtMost(5.0).toInt()
+
+			val dominantColor = when {
+				orangePixels > greenPixels && orangePixels > bluePixels -> "orange"
+				greenPixels > bluePixels -> "green"
+				bluePixels > 0 -> "blue"
+				else -> "none"
+			}
+
+			blueMask.release()
+			greenMask.release()
+			orangeMask.release()
+			hsvMat.release()
+			barMat.release()
+
+			if (debugMode) game.printToLog("[DEBUG] Relationship bar #${index + 1} is $fillPercent% filled with $filledSegments filled segments and the dominant color is $dominantColor", tag = tag)
+			results.add(BarFillResult(fillPercent, filledSegments, dominantColor))
+		}
+
+		return results
+	}
+
 	/**
 	 * Reads the 5 stat values on the Main screen.
 	 *
