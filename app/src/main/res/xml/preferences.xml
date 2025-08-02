@@ -67,6 +67,11 @@
             app:title="Enable Check for Popups" />
 
         <CheckBoxPreference
+            app:key="disableRaceRetries"
+            app:summary="Disable retrying on failed mandatory races and stops the bot. Defaults to disabled."
+            app:title="Disable Retrying on Failed Races" />
+
+        <CheckBoxPreference
             app:key="enableStopOnMandatoryRace"
             app:summary="Enables check to automatically stop the bot when reaching a mandatory race."
             app:title="Enable Stop on Mandatory Race" />

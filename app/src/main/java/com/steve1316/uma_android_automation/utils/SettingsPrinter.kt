@@ -26,6 +26,7 @@ object SettingsPrinter {
 		val enableSkillPointCheck: Boolean = sharedPreferences.getBoolean("enableSkillPointCheck", false)
 		val skillPointCheck: Int = sharedPreferences.getInt("skillPointCheck", 750)
 		val enablePopupCheck: Boolean = sharedPreferences.getBoolean("enablePopupCheck", false)
+		val disableRaceRetries: Boolean = sharedPreferences.getBoolean("disableRaceRetries", false)
 		val enableStopOnMandatoryRace: Boolean = sharedPreferences.getBoolean("enableStopOnMandatoryRace", false)
 		val enablePrioritizeEnergyOptions: Boolean = sharedPreferences.getBoolean("enablePrioritizeEnergyOptions", false)
 		
@@ -127,6 +128,7 @@ object SettingsPrinter {
 			appendLine("Modulo Days to Farm Fans: ${if (enableFarmingFans) "📅 $daysToRunExtraRaces days" else "❌"}")
 			appendLine("Skill Point Check: ${if (enableSkillPointCheck) "✅ Stop on $skillPointCheck Skill Points or more" else "❌"}")
 			appendLine("Popup Check: ${if (enablePopupCheck) "✅" else "❌"}")
+			appendLine("Disable Race Retries: ${if (disableRaceRetries) "✅" else "❌"}")
 			appendLine("Stop on Mandatory Race: ${if (enableStopOnMandatoryRace) "✅" else "❌"}")
 			appendLine("Prioritize Energy Options: ${if (enablePrioritizeEnergyOptions) "✅" else "❌"}")
 			appendLine()

@@ -71,6 +71,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
 						commit()
 					}
 				}
+				"disableRaceRetries" -> {
+					val disableRaceRetriesPreference = findPreference<CheckBoxPreference>("disableRaceRetries")!!
+
+					sharedPreferences.edit {
+						putBoolean("disableRaceRetries", disableRaceRetriesPreference.isChecked)
+						commit()
+					}
+				}
 				"enableStopOnMandatoryRace" -> {
 					val enableStopOnMandatoryRacePreference = findPreference<CheckBoxPreference>("enableStopOnMandatoryRace")!!
 					
@@ -174,6 +182,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 		val enableSkillPointCheck: Boolean = sharedPreferences.getBoolean("enableSkillPointCheck", false)
 		val skillPointCheck: Int = sharedPreferences.getInt("skillPointCheck", 750)
 		val enablePopupCheck: Boolean = sharedPreferences.getBoolean("enablePopupCheck", false)
+		val disableRaceRetries: Boolean = sharedPreferences.getBoolean("disableRaceRetries", false)
 		val enableStopOnMandatoryRace: Boolean = sharedPreferences.getBoolean("enableStopOnMandatoryRace", false)
 		val enablePrioritizeEnergyOptions: Boolean = sharedPreferences.getBoolean("enablePrioritizeEnergyOptions", false)
 		val debugMode: Boolean = sharedPreferences.getBoolean("debugMode", false)
@@ -191,6 +200,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 		val enableSkillPointCheckPreference = findPreference<CheckBoxPreference>("enableSkillPointCheck")!!
 		val skillPointCheckPreference = findPreference<SeekBarPreference>("skillPointCheck")!!
 		val enablePopupCheckPreference = findPreference<CheckBoxPreference>("enablePopupCheck")!!
+		val disableRaceRetriesPreference = findPreference<CheckBoxPreference>("disableRaceRetries")!!
 		val enableStopOnMandatoryRacePreference = findPreference<CheckBoxPreference>("enableStopOnMandatoryRace")!!
 		val enablePrioritizeEnergyOptionsPreference = findPreference<CheckBoxPreference>("enablePrioritizeEnergyOptions")!!
 		val debugModePreference = findPreference<CheckBoxPreference>("debugMode")!!
@@ -212,6 +222,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 		enableSkillPointCheckPreference.isChecked = enableSkillPointCheck
 		skillPointCheckPreference.value = skillPointCheck
 		enablePopupCheckPreference.isChecked = enablePopupCheck
+		disableRaceRetriesPreference.isChecked = disableRaceRetries
 		enableStopOnMandatoryRacePreference.isChecked = enableStopOnMandatoryRace
 		enablePrioritizeEnergyOptionsPreference.isChecked = enablePrioritizeEnergyOptions
 		debugModePreference.isChecked = debugMode
