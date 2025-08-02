@@ -1329,6 +1329,10 @@ class ImageUtils(context: Context, private val game: Game) {
 
 	/**
 	 *
+	/**
+	 * Reads the 5 stat values on the Main screen.
+	 *
+	 * @return The mapping of all 5 stats names to their respective integer values.
 	 */
 	fun determineStatValues(statValueMapping: MutableMap<String, Int>): MutableMap<String, Int> {
 		val (skillPointsLocation, sourceBitmap) = findImage("skill_points")
