@@ -63,6 +63,7 @@ class Game(val myContext: Context) {
 	private var raceRetries = 3
 	private var raceRepeatWarningCheck = false
 	var encounteredRacingPopup = false
+	var skipRacing = false
 	
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
@@ -880,6 +881,14 @@ class Game(val myContext: Context) {
 			encounteredRacingPopup = false
 			wait(1.0)
 		}
+
+		// If there are no races available, cancel the racing process.
+		if (imageUtils.findImage("race_none_available", tries = 1, region = imageUtils.regionMiddle, suppressError = true).first != null) {
+			printToLog("[RACE] There are no races to compete in. Canceling the racing process and doing something else.")
+			return false
+		}
+
+		skipRacing = false
 		
 		// First, check if there is a mandatory or a extra race available. If so, head into the Race Selection screen.
 		// Note: If there is a mandatory race, the bot would be on the Home screen.
