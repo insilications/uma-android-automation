@@ -77,7 +77,7 @@ open class Campaign(val game: Game) {
 							game.notificationMessage = "Stopping bot due to detection of Mandatory Race."
 							break
 						}
-
+						game.findAndTapImage("back", tries = 1, region = game.imageUtils.regionBottomHalf)
 						game.skipRacing = true
 						game.handleTraining()
 					}

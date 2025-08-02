@@ -995,7 +995,6 @@ class Game(val myContext: Context) {
 			if (maxFans != null) {
 				if (maxFans == -1) {
 					printToLog("[WARNING] Max fans was returned as -1. Canceling the racing process and doing something else.")
-					findAndTapImage("back", tries = 5, region = imageUtils.regionBottomHalf)
 					return false
 				}
 				
@@ -1012,7 +1011,6 @@ class Game(val myContext: Context) {
 				tap(extraRaceLocation[0].x - imageUtils.relWidth((100 * 1.36).toInt()), extraRaceLocation[0].y - imageUtils.relHeight(70), "race_extra_selection")
 			} else {
 				printToLog("[WARNING] No extra races detected and thus no fan maximums were calculated. Canceling the racing process and doing something else.")
-				findAndTapImage("back", tries = 5, region = imageUtils.regionBottomHalf)
 				return false
 			}
 			
