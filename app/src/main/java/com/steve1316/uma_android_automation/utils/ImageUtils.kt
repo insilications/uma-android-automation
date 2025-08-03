@@ -26,6 +26,9 @@ import androidx.core.graphics.get
 import androidx.core.graphics.createBitmap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.collections.component1
+import kotlin.collections.component2
+import kotlin.math.sqrt
 import kotlin.text.replace
 
 
@@ -1636,5 +1639,354 @@ class ImageUtils(context: Context, private val game: Game) {
 				}
 			}
 		}
+	}
+
+	/**
+    * Determines the stat gain values from training.
+    *
+    * This function uses template matching to find individual digits and the "+" symbol in the
+    * stat gain area of the training screen. It processes templates for digits 0-9 and the "+"
+    * symbol, then constructs the final integer value by analyzing the spatial arrangement
+    * of detected matches.
+    *
+    * @return Array of 5 detected stat gain values as integers, or -1 for failed detections.
+    */
+	fun determineStatGainFromTraining(): IntArray {
+		val templates = listOf("+", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
+		val statNames = listOf("Speed", "Stamina", "Power", "Guts", "Wit")
+		val results = IntArray(5) { -1 }
+
+		val (skillPointsLocation, sourceBitmap) = findImage("skill_points")
+
+		if (skillPointsLocation != null) {
+			// Iterate through each stat.
+			for (i in 0 until 5) {
+				val statName = statNames[i]
+				val xOffset = -934 + (i * 180)
+				val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(skillPointsLocation.x, xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82))
+
+				// Convert to Mat and then turn it to grayscale.
+				val sourceMat = Mat()
+				Utils.bitmapToMat(croppedBitmap, sourceMat)
+				val sourceGray = Mat()
+				Imgproc.cvtColor(sourceMat, sourceGray, Imgproc.COLOR_BGR2GRAY)
+
+				val workingMat = Mat()
+				sourceGray.copyTo(workingMat)
+
+				var matchResults = mutableMapOf<String, MutableList<Point>>()
+				templates.forEach { template ->
+					matchResults[template] = mutableListOf()
+				}
+
+				for (templateName in templates) {
+					val (_, templateBitmap) = getBitmaps(templateName)
+					if (templateBitmap != null) {
+						matchResults = processTemplate(templateName, templateBitmap, workingMat, matchResults)
+					} else {
+						game.printToLog("[ERROR] Could not load template \"$templateName\"", tag = tag, isError = true)
+					}
+				}
+
+				sourceMat.release()
+				sourceGray.release()
+				workingMat.release()
+
+				// Analyze results and construct the final integer value for this region.
+				val finalValue = constructIntegerFromMatches(matchResults)
+				results[i] = finalValue
+				game.printToLog("[INFO] $statName region final constructed value: $finalValue", tag = tag)
+
+				// Draw final visualization with all matches for this region.
+				if (debugMode) {
+					val resultMat = Mat()
+					Utils.bitmapToMat(croppedBitmap, resultMat)
+					templates.forEachIndexed { index, templateName ->
+						matchResults[templateName]?.forEach { point ->
+							val (_, templateBitmap) = getBitmaps(templateName)
+							if (templateBitmap != null) {
+								val templateWidth = templateBitmap.width
+								val templateHeight = templateBitmap.height
+
+								// Calculate the bounding box coordinates.
+								val x1 = (point.x - templateWidth/2).toInt()
+								val y1 = (point.y - templateHeight/2).toInt()
+								val x2 = (point.x + templateWidth/2).toInt()
+								val y2 = (point.y + templateHeight/2).toInt()
+
+								// Draw the bounding box.
+								Imgproc.rectangle(resultMat, Point(x1.toDouble(), y1.toDouble()), Point(x2.toDouble(), y2.toDouble()), Scalar(0.0, 0.0, 0.0), 2)
+
+								// Add text label.
+								Imgproc.putText(resultMat, templateName, Point(point.x, point.y), Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0.0, 0.0, 0.0), 1)
+							}
+						}
+					}
+
+					Imgcodecs.imwrite("$matchFilePath/debug_trainingStatGain_${statName}.png", resultMat)
+				}
+			}
+
+			game.printToLog("[INFO] All 5 stat regions processed. Results: ${results.contentToString()}", tag = tag)
+		} else {
+			game.printToLog("[ERROR] Could not find the skill points location to start determining stat gains.", tag = tag, isError = true)
+		}
+		
+		return results
+	}
+
+	/**
+	 * Processes a single template with transparency to find all valid matches in the working matrix through a multi-stage algorithm.
+	 *
+	 * The algorithm uses two validation criteria:
+	 * - Pixel match ratio: Ensures sufficient pixel-level similarity.
+	 * - Correlation coefficient: Validates statistical correlation between template and matched region.
+	 *
+	 * @param templateName Name of the template being processed (used for logging and debugging).
+	 * @param templateBitmap Bitmap of the template image (must have 4-channel RGBA format with transparency).
+	 * @param workingMat Working matrix to search in (grayscale source image).
+	 * @param matchResults Map to store match results, organized by template name.
+	 *
+	 * @return The modified matchResults mapping containing all valid matches found for this template
+	 */
+	private fun processTemplate(templateName: String, templateBitmap: Bitmap, workingMat: Mat, matchResults: MutableMap<String, MutableList<Point>>): MutableMap<String, MutableList<Point>> {
+		// These values have been tested for the best results against the dynamic background.
+		val matchConfidence = 0.8
+		val minPixelMatchRatio = 0.1
+		val minPixelCorrelation = 0.8
+
+		// Convert template to Mat and then to grayscale.
+		val templateMat = Mat()
+		val templateGray = Mat()
+		Utils.bitmapToMat(templateBitmap, templateMat)
+		Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_BGR2GRAY)
+
+		// Check if template has an alpha channel (transparency).
+		if (templateMat.channels() != 4) {
+			game.printToLog("[ERROR] Template \"$templateName\" is not transparent and is a requirement.", tag = tag, isError = true)
+			templateMat.release()
+			templateGray.release()
+			return matchResults
+		}
+
+		// Extract alpha channel for the alpha mask.
+		val alphaChannels = ArrayList<Mat>()
+		Core.split(templateMat, alphaChannels)
+		val alphaMask = alphaChannels[3] // Alpha channel is the 4th channel.
+
+		// Create binary mask for non-transparent pixels.
+		val validPixels = Mat()
+		Core.compare(alphaMask, Scalar(0.0), validPixels, Core.CMP_GT)
+
+		// Check transparency ratio.
+		val nonZeroPixels = Core.countNonZero(alphaMask)
+		val totalPixels = alphaMask.rows() * alphaMask.cols()
+		val transparencyRatio = nonZeroPixels.toDouble() / totalPixels
+		if (transparencyRatio < 0.1) {
+			game.printToLog("[WARNING] Template \"$templateName\" appears to be mostly transparent!", tag = tag)
+			alphaChannels.forEach { it.release() }
+			validPixels.release()
+			alphaMask.release()
+			templateMat.release()
+			templateGray.release()
+			return matchResults
+		}
+
+		////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////
+
+		var continueSearching = true
+		val searchMat = Mat()
+		workingMat.copyTo(searchMat)
+		while (continueSearching) {
+			var failedPixelMatchRatio = false
+			var failedPixelCorrelation = false
+
+			// Template match with the alpha mask.
+			val result = Mat()
+			Imgproc.matchTemplate(searchMat, templateGray, result, Imgproc.TM_CCORR_NORMED, alphaMask)
+			val mmr = Core.minMaxLoc(result)
+			val matchVal = mmr.maxVal
+			val matchLocation = mmr.maxLoc
+
+			if (matchVal >= matchConfidence) {
+				val x = matchLocation.x.toInt()
+				val y = matchLocation.y.toInt()
+				val h = templateGray.rows()
+				val w = templateGray.cols()
+
+				// Validate that the match location is within bounds.
+				if (x >= 0 && y >= 0 && x + w <= searchMat.cols() && y + h <= searchMat.rows()) {
+					// Extract the matched region from the source image.
+					val matchedRegion = Mat(searchMat, Rect(x, y, w, h))
+
+					// Create masked versions of the template and matched region using only non-transparent pixels.
+					val templateValid = Mat()
+					val regionValid = Mat()
+					templateGray.copyTo(templateValid, validPixels)
+					matchedRegion.copyTo(regionValid, validPixels)
+
+					// For the first test, compare pixel-by-pixel equality between the matched region and template to calculate match ratio.
+					val templateComparison = Mat()
+					Core.compare(matchedRegion, templateGray, templateComparison, Core.CMP_EQ)
+					val matchingPixels = Core.countNonZero(templateComparison)
+					val pixelMatchRatio = matchingPixels.toDouble() / (w * h)
+					if (pixelMatchRatio < minPixelMatchRatio) {
+						if (debugMode) game.printToLog("[DEBUG] Match for \"$templateName\" failed pixel ratio test: ${decimalFormat.format(pixelMatchRatio)} < ${decimalFormat.format(minPixelMatchRatio)}.", tag = tag)
+						failedPixelMatchRatio = true
+					}
+
+					// Extract pixel values into double arrays for correlation calculation.
+					val templateValidMat = Mat()
+					val regionValidMat = Mat()
+					templateValid.convertTo(templateValidMat, CvType.CV_64F)
+					regionValid.convertTo(regionValidMat, CvType.CV_64F)
+					val templateArray = DoubleArray(templateValid.total().toInt())
+					val regionArray = DoubleArray(regionValid.total().toInt())
+					templateValidMat.get(0, 0, templateArray)
+					regionValidMat.get(0, 0, regionArray)
+
+					// For the second test, validate the match quality by performing correlation calculation.
+					val pixelCorrelation = calculateCorrelation(templateArray, regionArray)
+					if (pixelCorrelation < minPixelCorrelation) {
+						if (debugMode) game.printToLog("[DEBUG] Match for \"$templateName\" failed correlation test: ${decimalFormat.format(pixelCorrelation)} < ${decimalFormat.format(minPixelCorrelation)}", tag = tag)
+						failedPixelCorrelation = true
+					}
+
+					// If both tests passed, then the match is valid.
+					if (!failedPixelMatchRatio && !failedPixelCorrelation) {
+						val centerX = x + (w / 2)
+						val centerY = y + (h / 2)
+						if (debugMode) game.printToLog("[DEBUG] Found valid match for template \"$templateName\" at ($centerX, $centerY).", tag = tag)
+						matchResults[templateName]?.add(Point(centerX.toDouble(), centerY.toDouble()))
+					}
+
+					// Draw a box to prevent re-detection in the next loop iteration.
+					Imgproc.rectangle(searchMat, Point(x.toDouble(), y.toDouble()), Point((x + w).toDouble(), (y + h).toDouble()), Scalar(0.0, 0.0, 0.0), -1)
+
+					templateComparison.release()
+					matchedRegion.release()
+					templateValid.release()
+					regionValid.release()
+					templateValidMat.release()
+					regionValidMat.release()
+				} else {
+					// Stop searching when the source has been traversed.
+					if (debugMode) game.printToLog("[DEBUG] Match for \"$templateName\" out of bounds: x=$x, y=$y, w=$w, h=$h, searchMat=${searchMat.cols()}x${searchMat.rows()}", tag = tag)
+					continueSearching = false
+				}
+			} else {
+				// No match found above threshold, stop searching for this template.
+				if (debugMode) game.printToLog("[DEBUG] No more matches found for template \"$templateName\".", tag = tag)
+				continueSearching = false
+			}
+
+			result.release()
+
+			// Safety check to prevent infinite loops.
+			if ((matchResults[templateName]?.size ?: 0) > 10) {
+				if (debugMode) game.printToLog("[DEBUG] Too many matches found for template \"$templateName\", stopping search.", tag = tag)
+				continueSearching = false
+			}
+		}
+
+		////////////////////////////////////////////////////////////////////
+		////////////////////////////////////////////////////////////////////
+
+		searchMat.release()
+		alphaChannels.forEach { it.release() }
+		validPixels.release()
+		alphaMask.release()
+		templateMat.release()
+		templateGray.release()
+
+		return matchResults
+	}
+
+	/**
+	 * Constructs the final integer value from matched template locations of numbers by analyzing spatial arrangement.
+	 * 
+	 * The function is designed for OCR-like scenarios where individual character templates
+	 * are matched separately and need to be reconstructed into a complete number.
+	 *
+	 * If matchResults contains: {"+" -> [(10, 20)], "1" -> [(15, 20)], "2" -> [(20, 20)]}, it returns: 12 (from string "+12").
+	 * 
+	 * @param matchResults Map of template names (e.g., "0", "1", "2", "+") to their match locations.
+	 * 
+	 * @return The constructed integer value or -1 if it failed.
+	 */
+	private fun constructIntegerFromMatches(matchResults: Map<String, MutableList<Point>>): Int {
+		// Collect all matches with their template names.
+		val allMatches = mutableListOf<Pair<String, Point>>()
+		matchResults.forEach { (templateName, points) ->
+			points.forEach { point ->
+				allMatches.add(Pair(templateName, point))
+			}
+		}
+
+		if (allMatches.isEmpty()) {
+			game.printToLog("[WARNING] No matches found to construct integer value.", tag = tag)
+			return -1
+		}
+
+		// Sort matches by x-coordinate (left to right).
+		allMatches.sortBy { it.second.x }
+		if (debugMode) game.printToLog("[DEBUG] Sorted matches: ${allMatches.map { "${it.first}@(${it.second.x}, ${it.second.y})" }}", tag = tag)
+
+		// Construct the string representation and then validate the format: start with + and contain only digits after.
+		val constructedString = allMatches.joinToString("") { it.first }
+		game.printToLog("[INFO] Constructed string: \"$constructedString\".", tag = tag)
+		if (!constructedString.startsWith("+")) {
+			game.printToLog("[WARNING] Constructed value doesn't start with \"+\": \"$constructedString\"", tag = tag)
+			return -1
+		}
+
+		// Extract the numeric part and convert to integer.
+		return try {
+			val numericPart = constructedString.substring(1)
+			if (numericPart.isEmpty()) {
+				game.printToLog("[WARNING] No numeric part found after \"+\": \"$constructedString\"", tag = tag)
+				return -1
+			}
+
+			val result = numericPart.toInt()
+			game.printToLog("[INFO] Successfully constructed integer value: $result from \"$constructedString\"", tag = tag)
+			result
+		} catch (e: NumberFormatException) {
+			game.printToLog("[ERROR] Could not convert \"$constructedString\" to integer: ${e.message}", tag = tag, isError = true)
+			-1
+		}
+	}
+
+	/**
+	 * Calculates the Pearson correlation coefficient between two arrays of pixel values.
+	 *
+	 * The Pearson correlation coefficient measures the linear correlation between two variables,
+	 * ranging from -1 (perfect negative correlation) to +1 (perfect positive correlation).
+	 * A value of 0 indicates no linear correlation.
+	 *
+	 * @param array1 First array of pixel values from the template image.
+	 * @param array2 Second array of pixel values from the matched region.
+	 * @return Correlation coefficient between -1.0 and +1.0, or 0.0 if arrays are invalid
+	 */
+	private fun calculateCorrelation(array1: DoubleArray, array2: DoubleArray): Double {
+		if (array1.size != array2.size || array1.isEmpty()) {
+			return 0.0
+		}
+
+		val n = array1.size
+		val sum1 = array1.sum()
+		val sum2 = array2.sum()
+		val sum1Sq = array1.sumOf { it * it }
+		val sum2Sq = array2.sumOf { it * it }
+		val pSum = array1.zip(array2).sumOf { it.first * it.second }
+
+		// Calculate the numerator: n*Σ(xy) - Σx*Σy
+		val num = pSum - (sum1 * sum2 / n)
+		// Calculate the denominator: sqrt((n*Σx² - (Σx)²) * (n*Σy² - (Σy)²))
+		val den = sqrt((sum1Sq - sum1 * sum1 / n) * (sum2Sq - sum2 * sum2 / n))
+
+		// Return the correlation coefficient, handling division by zero.
+		return if (den == 0.0) 0.0 else num / den
 	}
 }
