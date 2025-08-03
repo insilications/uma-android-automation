@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <PreferenceCategory app:title="Set Stat Targets">
+
+        <SeekBarPreference
+            android:defaultValue="600"
+            android:max="1200"
+            app:key="speedStatTarget"
+            app:min="100"
+            app:showSeekBarValue="true"
+            app:seekBarIncrement="10"
+            app:summary="Set the stat target to reach for Speed during Training."
+            app:title="Speed" />
+
+        <SeekBarPreference
+            android:defaultValue="600"
+            android:max="1200"
+            app:key="staminaStatTarget"
+            app:min="100"
+            app:showSeekBarValue="true"
+            app:seekBarIncrement="10"
+            app:summary="Set the stat target to reach for Stamina during Training."
+            app:title="Stamina" />
+
+        <SeekBarPreference
+            android:defaultValue="600"
+            android:max="1200"
+            app:key="powerStatTarget"
+            app:min="1"
+            app:showSeekBarValue="true"
+            app:seekBarIncrement="10"
+            app:summary="Set the stat target to reach for Power during Training."
+            app:title="Power" />
+
+        <SeekBarPreference
+            android:defaultValue="600"
+            android:max="1200"
+            app:key="gutsStatTarget"
+            app:min="1"
+            app:showSeekBarValue="true"
+            app:seekBarIncrement="10"
+            app:summary="Set the stat target to reach for Guts during Training."
+            app:title="Guts" />
+
+        <SeekBarPreference
+            android:defaultValue="600"
+            android:max="1200"
+            app:key="witStatTarget"
+            app:min="1"
+            app:showSeekBarValue="true"
+            app:seekBarIncrement="10"
+            app:summary="Set the stat target to reach for Wit during Training."
+            app:title="Wit" />
+
+    </PreferenceCategory>
+</PreferenceScreen>

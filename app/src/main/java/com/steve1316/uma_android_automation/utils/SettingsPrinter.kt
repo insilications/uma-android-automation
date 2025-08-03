@@ -37,6 +37,31 @@ object SettingsPrinter {
 		val disableTrainingOnMaxedStat: Boolean = sharedPreferences.getBoolean("disableTrainingOnMaxedStat", true)
 		val focusOnSparkStatTarget: Boolean = sharedPreferences.getBoolean("focusOnSparkStatTarget", false)
 		
+		// Training Stat Targets
+		val sprintSpeedTarget = sharedPreferences.getInt("trainingSprintStatTarget_speedStatTarget", 900)
+		val sprintStaminaTarget = sharedPreferences.getInt("trainingSprintStatTarget_staminaStatTarget", 300)
+		val sprintPowerTarget = sharedPreferences.getInt("trainingSprintStatTarget_powerStatTarget", 600)
+		val sprintGutsTarget = sharedPreferences.getInt("trainingSprintStatTarget_gutsStatTarget", 300)
+		val sprintWitTarget = sharedPreferences.getInt("trainingSprintStatTarget_witStatTarget", 300)
+		
+		val mileSpeedTarget = sharedPreferences.getInt("trainingMileStatTarget_speedStatTarget", 900)
+		val mileStaminaTarget = sharedPreferences.getInt("trainingMileStatTarget_staminaStatTarget", 300)
+		val milePowerTarget = sharedPreferences.getInt("trainingMileStatTarget_powerStatTarget", 600)
+		val mileGutsTarget = sharedPreferences.getInt("trainingMileStatTarget_gutsStatTarget", 300)
+		val mileWitTarget = sharedPreferences.getInt("trainingMileStatTarget_witStatTarget", 300)
+		
+		val mediumSpeedTarget = sharedPreferences.getInt("trainingMediumStatTarget_speedStatTarget", 800)
+		val mediumStaminaTarget = sharedPreferences.getInt("trainingMediumStatTarget_staminaStatTarget", 450)
+		val mediumPowerTarget = sharedPreferences.getInt("trainingMediumStatTarget_powerStatTarget", 550)
+		val mediumGutsTarget = sharedPreferences.getInt("trainingMediumStatTarget_gutsStatTarget", 300)
+		val mediumWitTarget = sharedPreferences.getInt("trainingMediumStatTarget_witStatTarget", 300)
+		
+		val longSpeedTarget = sharedPreferences.getInt("trainingLongStatTarget_speedStatTarget", 700)
+		val longStaminaTarget = sharedPreferences.getInt("trainingLongStatTarget_staminaStatTarget", 600)
+		val longPowerTarget = sharedPreferences.getInt("trainingLongStatTarget_powerStatTarget", 450)
+		val longGutsTarget = sharedPreferences.getInt("trainingLongStatTarget_gutsStatTarget", 300)
+		val longWitTarget = sharedPreferences.getInt("trainingLongStatTarget_witStatTarget", 300)
+		
 		// Training Event Settings
 		val character = sharedPreferences.getString("character", "Please select one in the Training Event Settings")!!
 		val selectAllCharacters = sharedPreferences.getBoolean("selectAllCharacters", true)
@@ -106,6 +131,11 @@ object SettingsPrinter {
 		} else {
 			"✨ Focus on Sparks for Stat Targets: ❌"
 		}
+		
+		val sprintTargetsString = "Sprint   		Speed: $sprintSpeedTarget, Stamina: $sprintStaminaTarget, Power: $sprintPowerTarget, Guts: $sprintGutsTarget, Wit: $sprintWitTarget"
+		val mileTargetsString = "Mile   			Speed: $mileSpeedTarget, Stamina: $mileStaminaTarget, Power: $milePowerTarget, Guts: $mileGutsTarget, Wit: $mileWitTarget"
+		val mediumTargetsString = "Medium   	Speed: $mediumSpeedTarget, Stamina: $mediumStaminaTarget, Power: $mediumPowerTarget, Guts: $mediumGutsTarget, Wit: $mediumWitTarget"
+		val longTargetsString = "Long   		Speed: $longSpeedTarget, Stamina: $longStaminaTarget, Power: $longPowerTarget, Guts: $longGutsTarget, Wit: $longWitTarget"
 
 		////////////////////////////////////////////////////////////////////////////////////////////////////
 		////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -124,6 +154,12 @@ object SettingsPrinter {
 			appendLine("Maximum Failure Chance Allowed: $maximumFailureChance%")
 			appendLine("Disable Training on Maxed Stat: ${if (disableTrainingOnMaxedStat) "✅" else "❌"}")
 			appendLine(focusOnSparkString)
+			appendLine()
+			appendLine("---------- Training Stat Targets by Distance ----------")
+			appendLine(sprintTargetsString)
+			appendLine(mileTargetsString)
+			appendLine(mediumTargetsString)
+			appendLine(longTargetsString)
 			appendLine()
 			appendLine("---------- Tesseract OCR Optimization ----------")
 			appendLine("OCR Threshold: $threshold")
