@@ -1958,17 +1958,14 @@ class ImageUtils(context: Context, private val game: Game) {
 		// Construct the string representation and then validate the format: start with + and contain only digits after.
 		val constructedString = allMatches.joinToString("") { it.first }
 		game.printToLog("[INFO] Constructed string: \"$constructedString\".", tag = tag)
-		if (!constructedString.startsWith("+")) {
-			game.printToLog("[WARNING] Constructed value doesn't start with \"+\": \"$constructedString\"", tag = tag)
-			return -1
-		}
 
 		// Extract the numeric part and convert to integer.
 		return try {
-			val numericPart = constructedString.substring(1)
-			if (numericPart.isEmpty()) {
+			val numericPart = if (constructedString.startsWith("+") && constructedString.substring(1).isNotEmpty()) {
 				game.printToLog("[WARNING] No numeric part found after \"+\": \"$constructedString\"", tag = tag)
-				return -1
+				constructedString.substring(1)
+			} else {
+				constructedString
 			}
 
 			val result = numericPart.toInt()
