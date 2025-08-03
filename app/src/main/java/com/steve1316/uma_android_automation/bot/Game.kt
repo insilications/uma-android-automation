@@ -477,6 +477,7 @@ class Game(val myContext: Context) {
 		// Enter the Training screen.
 		if (findAndTapImage("training_option", region = imageUtils.regionBottomHalf)) {
 			// Acquire the percentages and stat gains for each training.
+			wait(0.5)
 			findStatsAndPercentages()
 			
 			if (trainingMap.isEmpty()) {
@@ -514,15 +515,16 @@ class Game(val myContext: Context) {
 		
 		// Acquire the position of the speed stat text.
 		val (speedStatTextLocation, _) = if (campaign == "Ao Haru") {
-			imageUtils.findImage("aoharu_stat_speed", region = imageUtils.regionBottomHalf)
+			imageUtils.findImage("aoharu_stat_speed", tries = 1, region = imageUtils.regionBottomHalf)
 		} else {
-			imageUtils.findImage("stat_speed", region = imageUtils.regionBottomHalf)
+			imageUtils.findImage("stat_speed", tries = 1, region = imageUtils.regionBottomHalf)
 		}
 		
 		if (speedStatTextLocation != null) {
 			// Perform a percentage check of Speed training to see if the bot has enough energy to do training. As a result, Speed training will be the one selected for the rest of the algorithm.
-			if (!imageUtils.confirmLocation("speed_training", tries = 5, region = imageUtils.regionTopHalf, suppressError = true)) {
-				findAndTapImage("training_speed")
+			if (!imageUtils.confirmLocation("speed_training", tries = 1, region = imageUtils.regionTopHalf, suppressError = true)) {
+				findAndTapImage("training_speed", region = imageUtils.regionBottomHalf)
+				wait(0.5)
 			}
 			
 			var failureChance: Int = imageUtils.findTrainingFailureChance()
