@@ -40,13 +40,7 @@ class Game(val myContext: Context) {
 	// Training
 	private val trainings: List<String> = listOf("Speed", "Stamina", "Power", "Guts", "Wit")
 	private val trainingMap: MutableMap<String, MutableMap<String, Int>> = mutableMapOf()
-	private var statValueMap: MutableMap<String, Int> = mutableMapOf(
-		"Speed" to 0,
-		"Stamina" to 0,
-		"Power" to 0,
-		"Guts" to 0,
-		"Wit" to 0
-	)
+	private var currentStatsMap: MutableMap<String, Int> = mutableMapOf()
 	private val blacklist: List<String> = sharedPreferences.getStringSet("trainingBlacklist", setOf())!!.toList()
 	private var statPrioritization: List<String> = sharedPreferences.getString("statPrioritization", "")!!.split("|")
 	private val enablePrioritizeEnergyOptions: Boolean = sharedPreferences.getBoolean("enablePrioritizeEnergyOptions", false)
@@ -86,7 +80,7 @@ class Game(val myContext: Context) {
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 
-	data class Date(
+    data class Date(
 		val year: Int,
 		val phase: String,
 		val month: Int,
@@ -1253,9 +1247,9 @@ class Game(val myContext: Context) {
     */
 	fun updateStatValueMapping() {
 		printToLog("\n[STATS] Updating stat value mapping.")
-		statValueMap = imageUtils.determineStatValues(statValueMap)
+		currentStatsMap = imageUtils.determineStatValues(currentStatsMap)
 		// Print the updated stat value mapping here.
-		statValueMap.forEach { it ->
+		currentStatsMap.forEach { it ->
 			printToLog("[STATS] ${it.key}: ${it.value}")
 		}
 		printToLog("[STATS] Stat value mapping updated.\n")
