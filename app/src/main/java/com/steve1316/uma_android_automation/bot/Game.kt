@@ -360,7 +360,7 @@ class Game(val myContext: Context) {
 		printToLog("\n[TEST] Now beginning Comprehensive Training Failure OCR test on the Training screen for all 5 trainings on display.")
 		printToLog("[TEST] Note that this test is dependent on having the correct scale.")
 		findStatsAndPercentages(test = true)
-		printMap()
+		printTrainingMap()
 	}
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -693,7 +693,7 @@ class Game(val myContext: Context) {
 		}
 		
 		if (trainingSelected != "") {
-			printMap()
+			printTrainingMap()
 			printToLog("[TRAINING] Executing the $trainingSelected Training.")
 			findAndTapImage("training_${trainingSelected.lowercase()}", region = imageUtils.regionBottomHalf, taps = 3)
 		} else {
@@ -1432,7 +1432,7 @@ class Game(val myContext: Context) {
 	/**
 	 * Prints the training map object for informational purposes.
 	 */
-	private fun printMap() {
+	private fun printTrainingMap() {
 		printToLog("\n[INFO] Calculated Stat Weight by Training:")
 		trainingMap.forEach { name, training ->
 			printToLog("[TRAINING] $name Training stat gains: ${training.statGains.contentToString()}, failure chance: ${training.failureChance}%, is rainbow training: ${training.isRainbow}.")
