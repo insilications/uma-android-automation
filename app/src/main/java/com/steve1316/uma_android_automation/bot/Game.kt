@@ -39,7 +39,7 @@ class Game(val myContext: Context) {
 	////////////////////////////////////////////////////////////////////
 	// Training
 	private val trainings: List<String> = listOf("Speed", "Stamina", "Power", "Guts", "Wit")
-	private val trainingMap: MutableMap<String, MutableMap<String, Int>> = mutableMapOf()
+	private val trainingMap: MutableMap<String, Training> = mutableMapOf()
 	private var currentStatsMap: MutableMap<String, Int> = mutableMapOf()
 	private val blacklist: List<String> = sharedPreferences.getStringSet("trainingBlacklist", setOf())!!.toList()
 	private var statPrioritization: List<String> = sharedPreferences.getString("statPrioritization", "Speed|Stamina|Power|Guts|Wit")!!.split("|")
@@ -79,6 +79,33 @@ class Game(val myContext: Context) {
 	
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
+
+	data class Training(
+		val name: String,
+		val statGains: IntArray,
+		val failureChance: Int,
+		val isRainbow: Boolean
+	) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as Training
+
+            if (isRainbow != other.isRainbow) return false
+            if (name != other.name) return false
+            if (!statGains.contentEquals(other.statGains)) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = isRainbow.hashCode()
+            result = 31 * result + name.hashCode()
+            result = 31 * result + statGains.contentHashCode()
+            return result
+        }
+    }
 
     data class Date(
 		val year: Int,
@@ -1365,8 +1392,8 @@ class Game(val myContext: Context) {
 	 */
 	private fun printMap() {
 		printToLog("\n[INFO] Calculated Stat Weight by Training:")
-		trainingMap.keys.forEach { stat ->
-			printToLog("\n$stat: ${trainingMap[stat]?.get("statWeight")} for ${trainingMap[stat]?.get("failureChance")}%")
+		trainingMap.forEach { name, training ->
+			printToLog("[TRAINING] $name Training stat gains: ${training.statGains.contentToString()}, failure chance: ${training.failureChance}%, is rainbow training: ${training.isRainbow}.")
 		}
 	}
 	
