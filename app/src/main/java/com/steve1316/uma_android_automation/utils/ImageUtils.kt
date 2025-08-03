@@ -1520,6 +1520,59 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
+	 * Determines the preferred race distance based on aptitude levels (S, A, B) for each distance type on the Full Stats popup.
+	 *
+	 * This function analyzes the aptitude display for four race distances: Sprint, Mile, Medium, and Long.
+	 * It uses template matching to detect S, A, and B aptitude levels and returns the distance with the
+	 * highest aptitude found. The priority order is S > A > B, with S aptitude being returned immediately
+	 * since it's the best possible outcome.
+	 *
+	 * @return The preferred distance (Sprint, Mile, Medium, or Long) or Medium as default if no aptitude is detected.
+	 */
+	fun determinePreferredDistance(): String {
+		val (distanceLocation, sourceBitmap) = findImage("stat_distance", tries = 1, region = regionMiddle)
+		if (distanceLocation == null) {
+			game.printToLog("[ERROR] Could not determine the preferred distance. Setting to Medium by default.", tag = tag, isError = true)
+			return "Medium"
+		}
+
+		val (_, statAptitudeSTemplate) = getBitmaps("stat_aptitude_S")
+		val (_, statAptitudeATemplate) = getBitmaps("stat_aptitude_A")
+		val (_, statAptitudeBTemplate) = getBitmaps("stat_aptitude_B")
+		
+		val distances = listOf("Sprint", "Mile", "Medium", "Long")
+		var bestAptitudeDistance = ""
+		var bestAptitudeLevel = -1 // -1 = none, 0 = B, 1 = A, 2 = S
+
+		for (i in 0 until 4) {
+			val distance = distances[i]
+			val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(distanceLocation.x, 108 + (i * 190)), relY(distanceLocation.y, -25), 176, 52)
+
+			when {
+				match(croppedBitmap, statAptitudeSTemplate!!, "stat_aptitude_S") -> {
+					// S aptitude found - this is the best possible, return immediately.
+					return distance
+				}
+				bestAptitudeLevel < 1 && match(croppedBitmap, statAptitudeATemplate!!, "stat_aptitude_A") -> {
+					// A aptitude found (pick the leftmost aptitude) - better than B, but keep looking for S.
+                    bestAptitudeDistance = distance
+                    bestAptitudeLevel = 1
+                }
+				bestAptitudeLevel < 0 && match(croppedBitmap, statAptitudeBTemplate!!, "stat_aptitude_B") -> {
+					// B aptitude found - only use if no A aptitude found yet.
+					bestAptitudeDistance = distance
+					bestAptitudeLevel = 0
+				}
+			}
+		}
+
+		return bestAptitudeDistance.ifEmpty {
+            game.printToLog("[WARNING] Could not determine the preferred distance with at least B aptitude. Setting to Medium by default.", tag = tag, isError = true)
+            "Medium"
+        }
+	}
+
+	/**
 	 * Reads the 5 stat values on the Main screen.
 	 *
 	 * @return The mapping of all 5 stats names to their respective integer values.

@@ -52,6 +52,7 @@ class Game(val myContext: Context) {
 	private val enablePrioritizeEnergyOptions: Boolean = sharedPreferences.getBoolean("enablePrioritizeEnergyOptions", false)
 	private val maximumFailureChance: Int = sharedPreferences.getInt("maximumFailureChance", 15)
 	private val disableTrainingOnMaxedStat: Boolean = sharedPreferences.getBoolean("disableTrainingOnMaxedStat", true)
+	private var preferredDistance: String = ""
 	private var firstTrainingCheck = true
 	private var previouslySelectedTraining = ""
 	
@@ -1238,6 +1239,14 @@ class Game(val myContext: Context) {
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Helper Functions
+
+	fun updatePreferredDistance() {
+		printToLog("\n[STATS] Updating preferred distance.")
+		if (findAndTapImage("main_status", tries = 1, region = imageUtils.regionMiddle)) {
+			preferredDistance = imageUtils.determinePreferredDistance()
+			printToLog("[STATS] Preferred distance set to $preferredDistance.")
+		}
+	}
 
 	/**
     * Updates the current stat value mapping by reading the character's current stats from the Main screen.
