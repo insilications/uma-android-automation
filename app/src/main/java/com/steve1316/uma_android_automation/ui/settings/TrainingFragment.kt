@@ -32,16 +32,19 @@ class TrainingFragment : PreferenceFragmentCompat() {
 		val trainingBlacklist = sharedPreferences.getStringSet("trainingBlacklist", setOf())
 		val maximumFailureChance = sharedPreferences.getInt("maximumFailureChance", 15)
 		val disableTrainingOnMaxedStat = sharedPreferences.getBoolean("disableTrainingOnMaxedStat", true)
+		val focusOnSparkStatTarget = sharedPreferences.getBoolean("focusOnSparkStatTarget", false)
 		
 		// Get references to the Preference components.
 		val trainingBlacklistPreference = findPreference<MultiSelectListPreference>("trainingBlacklist")!!
 		val maximumFailureChancePreference = findPreference<SeekBarPreference>("maximumFailureChance")!!
 		val disableTrainingOnMaxedStatPreference = findPreference<CheckBoxPreference>("disableTrainingOnMaxedStat")!!
+		val focusOnSparkStatTargetPreference = findPreference<CheckBoxPreference>("focusOnSparkStatTarget")!!
 		
 		// Now set the following values from the SharedPreferences.
 		trainingBlacklistPreference.values = trainingBlacklist
 		maximumFailureChancePreference.value = maximumFailureChance
 		disableTrainingOnMaxedStatPreference.isChecked = disableTrainingOnMaxedStat
+		focusOnSparkStatTargetPreference.isChecked = focusOnSparkStatTarget
 		createMultiSelectAlertDialog()
 		
 		// Set this Preference listener to prevent users from blacklisting all 5 Trainings.

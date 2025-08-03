@@ -29,5 +29,10 @@
             app:summary="Set the maximum failure chance that Training is allowed to have before recovering energy. Default is at 15%."
             app:title="Set Maximum Failure Chance" />
 
+        <CheckBoxPreference
+            app:key="focusOnSparkStatTarget"
+            app:summary="Focuses on getting Speed, Stamina and Power to at least 600 for a better chance at getting a 3* Spark. Defaults to enabled."
+            app:title="Focus on Sparks for Stat Targets" />
+
     </PreferenceCategory>
 </PreferenceScreen>

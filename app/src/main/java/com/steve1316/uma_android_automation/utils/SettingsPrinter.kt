@@ -35,6 +35,7 @@ object SettingsPrinter {
 		var statPrioritization: List<String> = sharedPreferences.getString("statPrioritization", "Speed|Stamina|Power|Wit|Guts")!!.split("|")
 		val maximumFailureChance: Int = sharedPreferences.getInt("maximumFailureChance", 15)
 		val disableTrainingOnMaxedStat: Boolean = sharedPreferences.getBoolean("disableTrainingOnMaxedStat", true)
+		val focusOnSparkStatTarget: Boolean = sharedPreferences.getBoolean("focusOnSparkStatTarget", false)
 		
 		// Training Event Settings
 		val character = sharedPreferences.getString("character", "Please select one in the Training Event Settings")!!
@@ -99,6 +100,12 @@ object SettingsPrinter {
 		} else {
 			"📊 Stat Prioritization: ${statPrioritization.joinToString(", ")}"
 		}
+		
+		val focusOnSparkString: String = if (focusOnSparkStatTarget) {
+			"✨ Focus on Sparks for Stat Targets: ✅"
+		} else {
+			"✨ Focus on Sparks for Stat Targets: ❌"
+		}
 
 		////////////////////////////////////////////////////////////////////////////////////////////////////
 		////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -116,6 +123,7 @@ object SettingsPrinter {
 			appendLine(statPrioritizationString)
 			appendLine("Maximum Failure Chance Allowed: $maximumFailureChance%")
 			appendLine("Disable Training on Maxed Stat: ${if (disableTrainingOnMaxedStat) "✅" else "❌"}")
+			appendLine(focusOnSparkString)
 			appendLine()
 			appendLine("---------- Tesseract OCR Optimization ----------")
 			appendLine("OCR Threshold: $threshold")
