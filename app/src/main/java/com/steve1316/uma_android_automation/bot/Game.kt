@@ -42,7 +42,7 @@ class Game(val myContext: Context) {
 	private val trainingMap: MutableMap<String, MutableMap<String, Int>> = mutableMapOf()
 	private var currentStatsMap: MutableMap<String, Int> = mutableMapOf()
 	private val blacklist: List<String> = sharedPreferences.getStringSet("trainingBlacklist", setOf())!!.toList()
-	private var statPrioritization: List<String> = sharedPreferences.getString("statPrioritization", "")!!.split("|")
+	private var statPrioritization: List<String> = sharedPreferences.getString("statPrioritization", "Speed|Stamina|Power|Guts|Wit")!!.split("|")
 	private val enablePrioritizeEnergyOptions: Boolean = sharedPreferences.getBoolean("enablePrioritizeEnergyOptions", false)
 	private val maximumFailureChance: Int = sharedPreferences.getInt("maximumFailureChance", 15)
 	private val disableTrainingOnMaxedStat: Boolean = sharedPreferences.getBoolean("disableTrainingOnMaxedStat", true)
@@ -1420,11 +1420,6 @@ class Game(val myContext: Context) {
 	 * @return True if all automation goals have been met. False otherwise.
 	 */
 	fun start(): Boolean {
-		// Set default values for Stat Prioritization if its empty.
-		if (statPrioritization.isEmpty() || statPrioritization[0] == "") {
-			statPrioritization = listOf("Speed", "Stamina", "Power", "Wit", "Guts")
-		}
-		
 		// Print current app settings at the start of the run.
 		SettingsPrinter.printCurrentSettings(myContext) { message ->
 			printToLog(message)
