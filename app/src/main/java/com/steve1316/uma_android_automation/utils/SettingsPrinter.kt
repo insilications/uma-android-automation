@@ -32,7 +32,7 @@ object SettingsPrinter {
 		
 		// Training Settings
 		val trainingBlacklist: Set<String> = sharedPreferences.getStringSet("trainingBlacklist", setOf<String>()) as Set<String>
-		var statPrioritization: List<String> = sharedPreferences.getString("statPrioritization", "")!!.split("|")
+		var statPrioritization: List<String> = sharedPreferences.getString("statPrioritization", "Speed|Stamina|Power|Wit|Guts")!!.split("|")
 		val maximumFailureChance: Int = sharedPreferences.getInt("maximumFailureChance", 15)
 		val disableTrainingOnMaxedStat: Boolean = sharedPreferences.getBoolean("disableTrainingOnMaxedStat", true)
 		
@@ -56,9 +56,8 @@ object SettingsPrinter {
 		val debugModeStartComprehensiveTrainingFailureOCRTest: Boolean = sharedPreferences.getBoolean("debugMode_startComprehensiveTrainingFailureOCRTest", false)
 		val hideComparisonResults: Boolean = sharedPreferences.getBoolean("hideComparisonResults", true)
 
-		// Set default values if this is the user's first time.
 		if (statPrioritization.isEmpty() || statPrioritization[0] == "") {
-			statPrioritization = listOf("Speed", "Stamina", "Power", "Guts", "Wit")
+			statPrioritization = listOf("Speed", "Stamina", "Power", "Wit", "Guts")
 		}
 
 		////////////////////////////////////////////////////////////////////////////////////////////////////

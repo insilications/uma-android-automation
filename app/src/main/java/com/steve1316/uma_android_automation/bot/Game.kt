@@ -1419,7 +1419,7 @@ class Game(val myContext: Context) {
 	fun start(): Boolean {
 		// Set default values for Stat Prioritization if its empty.
 		if (statPrioritization.isEmpty() || statPrioritization[0] == "") {
-			statPrioritization = listOf("Speed", "Stamina", "Power", "Guts", "Wit")
+			statPrioritization = listOf("Speed", "Stamina", "Power", "Wit", "Guts")
 		}
 		
 		// Print current app settings at the start of the run.
