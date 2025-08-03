@@ -1694,7 +1694,7 @@ class ImageUtils(context: Context, private val game: Game) {
 						for (templateName in templates) {
 							val templateBitmap = templateBitmaps[templateName]
 							if (templateBitmap != null) {
-								matchResults = processTemplate(templateName, templateBitmap, workingMat, matchResults)
+								matchResults = processStatGainTemplateWithTransparency(templateName, templateBitmap, workingMat, matchResults)
 							} else {
 								game.printToLog("[ERROR] Could not load template \"$templateName\".", tag = tag, isError = true)
 							}
@@ -1775,7 +1775,7 @@ class ImageUtils(context: Context, private val game: Game) {
 	 *
 	 * @return The modified matchResults mapping containing all valid matches found for this template
 	 */
-	private fun processTemplate(templateName: String, templateBitmap: Bitmap, workingMat: Mat, matchResults: MutableMap<String, MutableList<Point>>): MutableMap<String, MutableList<Point>> {
+	private fun processStatGainTemplateWithTransparency(templateName: String, templateBitmap: Bitmap, workingMat: Mat, matchResults: MutableMap<String, MutableList<Point>>): MutableMap<String, MutableList<Point>> {
 		// These values have been tested for the best results against the dynamic background.
 		val matchConfidence = 0.8
 		val minPixelMatchRatio = 0.1
