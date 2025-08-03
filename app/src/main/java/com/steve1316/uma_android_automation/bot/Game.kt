@@ -384,7 +384,10 @@ class Game(val myContext: Context) {
 		return if (imageUtils.findImage("tazuna", tries = 1, region = imageUtils.regionTopHalf).first != null &&
 			imageUtils.findImage("race_select_mandatory", tries = 1, region = imageUtils.regionBottomHalf, suppressError = true).first == null) {
 			printToLog("\n[INFO] Current bot location is at Main screen.")
+
+			// Perform updates here if necessary.
 			updateDate()
+			if (preferredDistance == "") updatePreferredDistance()
 			true
 		} else if (!enablePopupCheck && imageUtils.findImage("cancel", tries = 1, region = imageUtils.regionBottomHalf).first != null &&
 			imageUtils.findImage("race_confirm", tries = 1, region = imageUtils.regionBottomHalf).first != null) {
@@ -1493,6 +1496,9 @@ class Game(val myContext: Context) {
 		SettingsPrinter.printCurrentSettings(myContext) { message ->
 			printToLog(message)
 		}
+
+		// Update the stat targets by distances.
+		setStatTargetsByDistances()
 		
 		// If debug mode is off, then it is necessary to wait a few seconds for the Toast message to disappear from the screen to prevent it obstructing anything beneath it.
 		if (!debugMode) {
