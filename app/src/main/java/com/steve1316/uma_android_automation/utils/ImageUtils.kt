@@ -1794,10 +1794,12 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		////////////////////////////////////////////////////////////////////
 		////////////////////////////////////////////////////////////////////
-
+		
 		var continueSearching = true
-		val searchMat = Mat()
+		var searchMat = Mat()
+		var xOffset = 0
 		workingMat.copyTo(searchMat)
+
 		while (continueSearching) {
 			var failedPixelMatchRatio = false
 			var failedPixelCorrelation = false
@@ -1855,7 +1857,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 					// If both tests passed, then the match is valid.
 					if (!failedPixelMatchRatio && !failedPixelCorrelation) {
-						val centerX = x + (w / 2)
+						val centerX = (x + xOffset) + (w / 2)
 						val centerY = y + (h / 2)
 						if (debugMode) game.printToLog("[DEBUG] Found valid match for template \"$templateName\" at ($centerX, $centerY).", tag = tag)
 						matchResults[templateName]?.add(Point(centerX.toDouble(), centerY.toDouble()))
@@ -1870,6 +1872,23 @@ class ImageUtils(context: Context, private val game: Game) {
 					regionValid.release()
 					templateValidMat.release()
 					regionValidMat.release()
+
+					// Crop the Mat horizontally to exclude the supposed matched area.
+					val cropX = x + w
+					val remainingWidth = searchMat.cols() - cropX
+					when {
+						remainingWidth < templateGray.cols() -> {
+							if (debugMode) game.printToLog("[DEBUG] Mat size too small for template \"$templateName\". Stopping search.", tag = tag)
+							continueSearching = false
+						}
+						else -> {
+							val newSearchMat = Mat(searchMat, Rect(cropX, 0, remainingWidth, searchMat.rows()))
+							searchMat.release()
+							searchMat = newSearchMat
+							xOffset += cropX
+							if (debugMode) game.printToLog("[DEBUG] Cropped searchMat horizontally. New width: ${searchMat.cols()}, xOffset: $xOffset", tag = tag)
+						}
+					}
 				} else {
 					// Stop searching when the source has been traversed.
 					if (debugMode) game.printToLog("[DEBUG] Match for \"$templateName\" out of bounds: x=$x, y=$y, w=$w, h=$h, searchMat=${searchMat.cols()}x${searchMat.rows()}", tag = tag)
