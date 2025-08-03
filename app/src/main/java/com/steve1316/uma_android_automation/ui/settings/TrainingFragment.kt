@@ -64,6 +64,7 @@ class TrainingFragment : PreferenceFragmentCompat() {
 	}
 	
 	// This listener is triggered whenever the user changes a Preference setting in the Settings Page.
+	// This listener is triggered whenever the user changes a Preference setting in the Training Settings Page.
 	private val onSharedPreferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
 		if (key != null) {
 			when (key) {
