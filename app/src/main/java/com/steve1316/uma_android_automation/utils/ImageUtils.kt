@@ -1654,85 +1654,111 @@ class ImageUtils(context: Context, private val game: Game) {
 	fun determineStatGainFromTraining(): IntArray {
 		val templates = listOf("+", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
 		val statNames = listOf("Speed", "Stamina", "Power", "Guts", "Wit")
-		val results = IntArray(5) { -1 }
 
 		val (skillPointsLocation, sourceBitmap) = findImage("skill_points")
 
+		val threadSafeResults = IntArray(5) { -1 }
+
 		if (skillPointsLocation != null) {
-			// Iterate through each stat.
-			for (i in 0 until 5) {
-				val statName = statNames[i]
-				val xOffset = -934 + (i * 180)
-				val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(skillPointsLocation.x, xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82))
-
-				// Convert to Mat and then turn it to grayscale.
-				val sourceMat = Mat()
-				Utils.bitmapToMat(croppedBitmap, sourceMat)
-				val sourceGray = Mat()
-				Imgproc.cvtColor(sourceMat, sourceGray, Imgproc.COLOR_BGR2GRAY)
-
-				val workingMat = Mat()
-				sourceGray.copyTo(workingMat)
-
-				var matchResults = mutableMapOf<String, MutableList<Point>>()
-				templates.forEach { template ->
-					matchResults[template] = mutableListOf()
-				}
-
-				for (templateName in templates) {
-					val (_, templateBitmap) = getBitmaps(templateName)
-					if (templateBitmap != null) {
-						matchResults = processTemplate(templateName, templateBitmap, workingMat, matchResults)
-					} else {
-						game.printToLog("[ERROR] Could not load template \"$templateName\"", tag = tag, isError = true)
-					}
-				}
-
-				sourceMat.release()
-				sourceGray.release()
-				workingMat.release()
-
-				// Analyze results and construct the final integer value for this region.
-				val finalValue = constructIntegerFromMatches(matchResults)
-				results[i] = finalValue
-				game.printToLog("[INFO] $statName region final constructed value: $finalValue", tag = tag)
-
-				// Draw final visualization with all matches for this region.
-				if (debugMode) {
-					val resultMat = Mat()
-					Utils.bitmapToMat(croppedBitmap, resultMat)
-					templates.forEachIndexed { index, templateName ->
-						matchResults[templateName]?.forEach { point ->
-							val (_, templateBitmap) = getBitmaps(templateName)
-							if (templateBitmap != null) {
-								val templateWidth = templateBitmap.width
-								val templateHeight = templateBitmap.height
-
-								// Calculate the bounding box coordinates.
-								val x1 = (point.x - templateWidth/2).toInt()
-								val y1 = (point.y - templateHeight/2).toInt()
-								val x2 = (point.x + templateWidth/2).toInt()
-								val y2 = (point.y + templateHeight/2).toInt()
-
-								// Draw the bounding box.
-								Imgproc.rectangle(resultMat, Point(x1.toDouble(), y1.toDouble()), Point(x2.toDouble(), y2.toDouble()), Scalar(0.0, 0.0, 0.0), 2)
-
-								// Add text label.
-								Imgproc.putText(resultMat, templateName, Point(point.x, point.y), Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0.0, 0.0, 0.0), 1)
-							}
-						}
-					}
-
-					Imgcodecs.imwrite("$matchFilePath/debug_trainingStatGain_${statName}.png", resultMat)
+			// Pre-load all template bitmaps to avoid thread contention
+			val templateBitmaps = mutableMapOf<String, Bitmap?>()
+			for (templateName in templates) {
+				myContext.assets?.open("images/$templateName.png").use { inputStream ->
+					templateBitmaps[templateName] = BitmapFactory.decodeStream(inputStream)
 				}
 			}
 
-			game.printToLog("[INFO] All 5 stat regions processed. Results: ${results.contentToString()}", tag = tag)
+			// Process all stats in parallel using threads.
+			val statLatch = CountDownLatch(5)
+			for (i in 0 until 5) {
+				Thread {
+					try {
+						val statName = statNames[i]
+						val xOffset = -934 + (i * 180)
+						val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(skillPointsLocation.x, xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82))
+
+						// Convert to Mat and then turn it to grayscale.
+						val sourceMat = Mat()
+						Utils.bitmapToMat(croppedBitmap, sourceMat)
+						val sourceGray = Mat()
+						Imgproc.cvtColor(sourceMat, sourceGray, Imgproc.COLOR_BGR2GRAY)
+
+						val workingMat = Mat()
+						sourceGray.copyTo(workingMat)
+
+						var matchResults = mutableMapOf<String, MutableList<Point>>()
+						templates.forEach { template ->
+							matchResults[template] = mutableListOf()
+						}
+
+						for (templateName in templates) {
+							val templateBitmap = templateBitmaps[templateName]
+							if (templateBitmap != null) {
+								matchResults = processTemplate(templateName, templateBitmap, workingMat, matchResults)
+							} else {
+								game.printToLog("[ERROR] Could not load template \"$templateName\".", tag = tag, isError = true)
+							}
+						}
+
+						// Analyze results and construct the final integer value for this region.
+						val finalValue = constructIntegerFromMatches(matchResults)
+						threadSafeResults[i] = finalValue
+						game.printToLog("[INFO] $statName region final constructed value: $finalValue.", tag = tag)
+
+						// Draw final visualization with all matches for this region.
+						if (debugMode) {
+							val resultMat = Mat()
+							Utils.bitmapToMat(croppedBitmap, resultMat)
+							templates.forEachIndexed { index, templateName ->
+								matchResults[templateName]?.forEach { point ->
+									val templateBitmap = templateBitmaps[templateName]
+									if (templateBitmap != null) {
+										val templateWidth = templateBitmap.width
+										val templateHeight = templateBitmap.height
+
+										// Calculate the bounding box coordinates.
+										val x1 = (point.x - templateWidth/2).toInt()
+										val y1 = (point.y - templateHeight/2).toInt()
+										val x2 = (point.x + templateWidth/2).toInt()
+										val y2 = (point.y + templateHeight/2).toInt()
+
+										// Draw the bounding box.
+										Imgproc.rectangle(resultMat, Point(x1.toDouble(), y1.toDouble()), Point(x2.toDouble(), y2.toDouble()), Scalar(0.0, 0.0, 0.0), 2)
+
+										// Add text label.
+										Imgproc.putText(resultMat, templateName, Point(point.x, point.y), Imgproc.FONT_HERSHEY_SIMPLEX, 0.5, Scalar(0.0, 0.0, 0.0), 1)
+									}
+								}
+							}
+
+							Imgcodecs.imwrite("$matchFilePath/debug_trainingStatGain_${statName}_thread${i + 1}.png", resultMat)
+						}
+
+						sourceMat.release()
+						sourceGray.release()
+						workingMat.release()
+					} catch (e: Exception) {
+						game.printToLog("[ERROR] Error processing stat ${statNames[i]}: ${e.message}", tag = tag, isError = true)
+						threadSafeResults[i] = -1
+					} finally {
+						statLatch.countDown()
+					}
+				}.start()
+			}
+
+			// Wait for all threads to complete.
+			try {
+				statLatch.await(30, TimeUnit.SECONDS)
+			} catch (_: InterruptedException) {
+				game.printToLog("[ERROR] Stat processing timed out", tag = tag, isError = true)
+			}
+
+			game.printToLog("[INFO] All 5 stat regions processed. Results: ${threadSafeResults.contentToString()}", tag = tag)
 		} else {
 			game.printToLog("[ERROR] Could not find the skill points location to start determining stat gains.", tag = tag, isError = true)
 		}
 		
-		return results
+		return threadSafeResults
 	}
 
 	/**
@@ -1834,7 +1860,7 @@ class ImageUtils(context: Context, private val game: Game) {
 					val matchingPixels = Core.countNonZero(templateComparison)
 					val pixelMatchRatio = matchingPixels.toDouble() / (w * h)
 					if (pixelMatchRatio < minPixelMatchRatio) {
-						if (debugMode) game.printToLog("[DEBUG] Match for \"$templateName\" failed pixel ratio test: ${decimalFormat.format(pixelMatchRatio)} < ${decimalFormat.format(minPixelMatchRatio)}.", tag = tag)
+						Log.d(tag, "[DEBUG] Match for \"$templateName\" failed pixel ratio test: ${decimalFormat.format(pixelMatchRatio)} < ${decimalFormat.format(minPixelMatchRatio)}.")
 						failedPixelMatchRatio = true
 					}
 
@@ -1851,7 +1877,7 @@ class ImageUtils(context: Context, private val game: Game) {
 					// For the second test, validate the match quality by performing correlation calculation.
 					val pixelCorrelation = calculateCorrelation(templateArray, regionArray)
 					if (pixelCorrelation < minPixelCorrelation) {
-						if (debugMode) game.printToLog("[DEBUG] Match for \"$templateName\" failed correlation test: ${decimalFormat.format(pixelCorrelation)} < ${decimalFormat.format(minPixelCorrelation)}", tag = tag)
+						Log.d(tag, "[DEBUG] Match for \"$templateName\" failed correlation test: ${decimalFormat.format(pixelCorrelation)} < ${decimalFormat.format(minPixelCorrelation)}")
 						failedPixelCorrelation = true
 					}
 
@@ -1859,7 +1885,7 @@ class ImageUtils(context: Context, private val game: Game) {
 					if (!failedPixelMatchRatio && !failedPixelCorrelation) {
 						val centerX = (x + xOffset) + (w / 2)
 						val centerY = y + (h / 2)
-						if (debugMode) game.printToLog("[DEBUG] Found valid match for template \"$templateName\" at ($centerX, $centerY).", tag = tag)
+						Log.d(tag, "[DEBUG] Found valid match for template \"$templateName\" at ($centerX, $centerY).")
 						matchResults[templateName]?.add(Point(centerX.toDouble(), centerY.toDouble()))
 					}
 
@@ -1878,7 +1904,7 @@ class ImageUtils(context: Context, private val game: Game) {
 					val remainingWidth = searchMat.cols() - cropX
 					when {
 						remainingWidth < templateGray.cols() -> {
-							if (debugMode) game.printToLog("[DEBUG] Mat size too small for template \"$templateName\". Stopping search.", tag = tag)
+							Log.d(tag, "[DEBUG] Mat size too small for template \"$templateName\". Stopping search.")
 							continueSearching = false
 						}
 						else -> {
@@ -1886,17 +1912,17 @@ class ImageUtils(context: Context, private val game: Game) {
 							searchMat.release()
 							searchMat = newSearchMat
 							xOffset += cropX
-							if (debugMode) game.printToLog("[DEBUG] Cropped searchMat horizontally. New width: ${searchMat.cols()}, xOffset: $xOffset", tag = tag)
+							Log.d(tag, "[DEBUG] Cropped searchMat horizontally. New width: ${searchMat.cols()}, xOffset: $xOffset")
 						}
 					}
 				} else {
 					// Stop searching when the source has been traversed.
-					if (debugMode) game.printToLog("[DEBUG] Match for \"$templateName\" out of bounds: x=$x, y=$y, w=$w, h=$h, searchMat=${searchMat.cols()}x${searchMat.rows()}", tag = tag)
+					Log.d(tag, "[DEBUG] Match for \"$templateName\" out of bounds: x=$x, y=$y, w=$w, h=$h, searchMat=${searchMat.cols()}x${searchMat.rows()}")
 					continueSearching = false
 				}
 			} else {
 				// No match found above threshold, stop searching for this template.
-				if (debugMode) game.printToLog("[DEBUG] No more matches found for template \"$templateName\".", tag = tag)
+				Log.d(tag, "[DEBUG] No more matches found for template \"$templateName\".")
 				continueSearching = false
 			}
 
@@ -1904,7 +1930,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 			// Safety check to prevent infinite loops.
 			if ((matchResults[templateName]?.size ?: 0) > 10) {
-				if (debugMode) game.printToLog("[DEBUG] Too many matches found for template \"$templateName\", stopping search.", tag = tag)
+				Log.d(tag, "[DEBUG] Too many matches found for template \"$templateName\", stopping search.")
 				continueSearching = false
 			}
 			if (!BotService.isRunning) {
@@ -1962,7 +1988,6 @@ class ImageUtils(context: Context, private val game: Game) {
 		// Extract the numeric part and convert to integer.
 		return try {
 			val numericPart = if (constructedString.startsWith("+") && constructedString.substring(1).isNotEmpty()) {
-				game.printToLog("[WARNING] No numeric part found after \"+\": \"$constructedString\"", tag = tag)
 				constructedString.substring(1)
 			} else {
 				constructedString
