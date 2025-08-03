@@ -225,11 +225,7 @@ class HomeFragment : Fragment() {
 	 * @return True if the application has overlay permission and has enabled the Accessibility Service for it. Otherwise, return False.
 	 */
 	private fun startReadyCheck(): Boolean {
-		if (!checkForOverlayPermission() || !checkForAccessibilityPermission()) {
-			return false
-		}
-		
-		return true
+		return !(!checkForOverlayPermission() || !checkForAccessibilityPermission())
 	}
 	
 	/**
