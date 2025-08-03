@@ -1593,6 +1593,83 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
+	 * Performs OCR on the date region of the game screen to extract the current date string.
+	 *
+	 * @return The detected date string from the game screen, or empty string if detection fails.
+	 */
+	fun determineDayNumber(): String {
+		val (energyLocation, sourceBitmap) = findImage("energy")
+		var result = ""
+		if (energyLocation != null) {
+			val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(energyLocation.x, -268), relY(energyLocation.y, -180), relWidth(308), relHeight(35))
+
+			// Make the cropped screenshot grayscale.
+			val cvImage = Mat()
+			Utils.bitmapToMat(croppedBitmap, cvImage)
+			Imgproc.cvtColor(cvImage, cvImage, Imgproc.COLOR_BGR2GRAY)
+			if (debugMode) Imgcodecs.imwrite("$matchFilePath/debug_dateString_afterCrop.png", cvImage)
+
+			// Create a InputImage object for Google's ML OCR.
+			val resultBitmap = createBitmap(cvImage.cols(), cvImage.rows())
+			Utils.matToBitmap(cvImage, resultBitmap)
+			val inputImage: InputImage = InputImage.fromBitmap(resultBitmap, 0)
+
+			// Use CountDownLatch to make the async operation synchronous.
+			val latch = CountDownLatch(1)
+			var mlkitFailed = false
+
+			textRecognizer.process(inputImage)
+				.addOnSuccessListener { text ->
+					if (text.textBlocks.isNotEmpty()) {
+						for (block in text.textBlocks) {
+							game.printToLog("[INFO] Detected the date with Google ML Kit: ${block.text}", tag = tag)
+							result = block.text
+						}
+					}
+					latch.countDown()
+				}
+				.addOnFailureListener {
+					game.printToLog("[ERROR] Failed to do text detection via Google's ML Kit. Falling back to Tesseract.", tag = tag, isError = true)
+					mlkitFailed = true
+					latch.countDown()
+				}
+
+			// Wait for the async operation to complete.
+			try {
+				latch.await(5, TimeUnit.SECONDS)
+			} catch (_: InterruptedException) {
+				game.printToLog("[ERROR] Google ML Kit operation timed out", tag = tag, isError = true)
+			}
+
+			// Fallback to Tesseract if ML Kit failed or didn't find result.
+			if (mlkitFailed || result == "") {
+				tessBaseAPI.setImage(resultBitmap)
+				tessBaseAPI.pageSegMode = TessBaseAPI.PageSegMode.PSM_SINGLE_LINE
+
+				try {
+					result = tessBaseAPI.utF8Text
+					game.printToLog("[INFO] Detected date with Tesseract: $result", tag = tag)
+				} catch (e: Exception) {
+					game.printToLog("[ERROR] Cannot perform OCR using Tesseract: ${e.stackTraceToString()}", tag = tag, isError = true)
+					result = ""
+				}
+
+				tessBaseAPI.clear()
+			}
+
+			if (debugMode) {
+				game.printToLog("[DEBUG] Date string detected to be at \"$result\".")
+			} else {
+				Log.d(tag, "Date string detected to be at \"$result\".")
+			}
+		} else {
+			game.printToLog("[ERROR] Could not start the process of detecting the date string.", tag = tag, isError = true)
+		}
+
+		return result
+	}
+
+	/**
 	 * Initialize Tesseract for future OCR operations. Make sure to put your .traineddata inside the root of the /assets/ folder.
 	 */
 	private fun initTesseract() {

@@ -78,12 +78,23 @@ class Game(val myContext: Context) {
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// Misc
+	private var currentDate: Date = Date(1, "Early", 1, 1)
 	private var inheritancesDone = 0
 	private val startTime: Long = System.currentTimeMillis()
 	
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
-	
+
+	data class Date(
+		val year: Int,
+		val phase: String,
+		val month: Int,
+        val turnNumber: Int
+	)
+
+	////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////
+
 	/**
 	 * Returns a formatted string of the elapsed time since the bot started as HH:MM:SS format.
 	 *
@@ -309,6 +320,7 @@ class Game(val myContext: Context) {
 		return if (imageUtils.findImage("tazuna", tries = 1, region = imageUtils.regionTopHalf).first != null &&
 			imageUtils.findImage("race_select_mandatory", tries = 1, region = imageUtils.regionBottomHalf, suppressError = true).first == null) {
 			printToLog("\n[INFO] Current bot location is at Main screen.")
+			updateDate()
 			true
 		} else if (!enablePopupCheck && imageUtils.findImage("cancel", tries = 1, region = imageUtils.regionBottomHalf).first != null &&
 			imageUtils.findImage("race_confirm", tries = 1, region = imageUtils.regionBottomHalf).first != null) {
@@ -1236,6 +1248,16 @@ class Game(val myContext: Context) {
 			printToLog("[STATS] ${it.key}: ${it.value}")
 		}
 		printToLog("[STATS] Stat value mapping updated.\n")
+	}
+
+	/**
+	 * Updates the stored date in memory by keeping track of the current year, phase, month and current turn number.
+	 */
+	fun updateDate() {
+		printToLog("\n[DATE] Updating the current turn number.")
+		val dateString = imageUtils.determineDayNumber()
+		currentDate = textDetection.determineDateFromString(dateString)
+		printToLog("\n[DATE] It is currently $currentDate.")
 	}
 
 	/**
