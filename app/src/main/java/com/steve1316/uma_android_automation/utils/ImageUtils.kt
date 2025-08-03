@@ -1734,7 +1734,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		val (skillPointsLocation, sourceBitmap) = findImage("skill_points")
 
-		val threadSafeResults = IntArray(5) { -1 }
+		val threadSafeResults = IntArray(5)
 
 		if (skillPointsLocation != null) {
 			// Pre-load all template bitmaps to avoid thread contention
@@ -1816,7 +1816,7 @@ class ImageUtils(context: Context, private val game: Game) {
 						workingMat.release()
 					} catch (e: Exception) {
 						game.printToLog("[ERROR] Error processing stat ${statNames[i]}: ${e.message}", tag = tag, isError = true)
-						threadSafeResults[i] = -1
+						threadSafeResults[i] = 0
 					} finally {
 						statLatch.countDown()
 					}
@@ -2051,7 +2051,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		if (allMatches.isEmpty()) {
 			game.printToLog("[WARNING] No matches found to construct integer value.", tag = tag)
-			return -1
+			return 0
 		}
 
 		// Sort matches by x-coordinate (left to right).
@@ -2075,7 +2075,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			result
 		} catch (e: NumberFormatException) {
 			game.printToLog("[ERROR] Could not convert \"$constructedString\" to integer: ${e.message}", tag = tag, isError = true)
-			-1
+			0
 		}
 	}
 
