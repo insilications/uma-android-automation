@@ -1794,7 +1794,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		////////////////////////////////////////////////////////////////////
 		////////////////////////////////////////////////////////////////////
-		
+
 		var continueSearching = true
 		var searchMat = Mat()
 		var xOffset = 0
@@ -1906,6 +1906,9 @@ class ImageUtils(context: Context, private val game: Game) {
 			if ((matchResults[templateName]?.size ?: 0) > 10) {
 				if (debugMode) game.printToLog("[DEBUG] Too many matches found for template \"$templateName\", stopping search.", tag = tag)
 				continueSearching = false
+			}
+			if (!BotService.isRunning) {
+				throw InterruptedException()
 			}
 		}
 
