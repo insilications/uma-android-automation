@@ -1063,56 +1063,6 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
-	 * Determine the initial stat weight by factoring in estimated stat gains and others like Ao Haru's modifiers for the selected Training option.
-	 *
-	 * @param currentStat The stat that the bot already selected.
-	 * @return The initial stat weight.
-	 */
-	fun findInitialStatWeight(currentStat: String): Int {
-		val customRegion = intArrayOf(displayWidth - (displayWidth / 3), 0, (displayWidth / 3), displayHeight - (displayHeight / 3))
-		val numberOfSpeed = findAll("stat_speed_block", region = customRegion).size
-		val numberOfStamina = findAll("stat_stamina_block", region = customRegion).size
-		val numberOfPower = findAll("stat_power_block", region = customRegion).size
-		val numberOfGuts = findAll("stat_guts_block", region = customRegion).size
-		val numberOfWit = findAll("stat_wit_block", region = customRegion).size
-		var totalStatGain = 0
-
-		// This is assuming Great Mood with +20% stat modifier.
-		when (currentStat) {
-			"Speed" -> {
-				totalStatGain += (numberOfSpeed * 20) + (numberOfStamina * 10) + (numberOfPower * 10) + (numberOfGuts * 10) + (numberOfWit * 10) + 10
-			}
-			"Stamina" -> {
-				totalStatGain += (numberOfSpeed * 10) + (numberOfStamina * 20) + (numberOfPower * 10) + (numberOfGuts * 10) + (numberOfWit * 10) + 10
-			}
-			"Power" -> {
-				totalStatGain += (numberOfSpeed * 10) + (numberOfStamina * 10) + (numberOfPower * 20) + (numberOfGuts * 10) + (numberOfWit * 10) + 10
-			}
-			"Guts" -> {
-				totalStatGain += (numberOfSpeed * 10) + (numberOfStamina * 10) + (numberOfPower * 10) + (numberOfGuts * 20) + (numberOfWit * 10) + 10
-			}
-			"Wit" -> {
-				totalStatGain += (numberOfSpeed * 10) + (numberOfStamina * 10) + (numberOfPower * 10) + (numberOfGuts * 10) + (numberOfWit * 20) + 10
-			}
-		}
-
-		// Check if this is a rainbow training.
-		if (findImage("training_rainbow", tries = 1, regionBottomHalf, suppressError = true).first != null) {
-			game.printToLog("[INFO] Training is detected to be a rainbow.", tag = tag)
-			totalStatGain += 50
-		}
-
-		// TODO: Have an option to have skill hints factor into the weight.
-
-		if (campaign == "Ao Haru") {
-			totalStatGain += (findAll("aoharu_special_training", region = customRegion).size * 10)
-			totalStatGain += (findAll("aoharu_spirit_explosion", region = customRegion).size * 20)
-		}
-
-		return totalStatGain
-	}
-
-	/**
 	 * Determines the day number to see if today is eligible for doing an extra race.
 	 *
 	 * @return Number of the day.
@@ -1380,7 +1330,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		// Take a single screenshot first to avoid buffer overflow.
 		val (sourceBitmap, _) = getBitmaps("stat_maxed")
-		
+
 		var allStatBlocks = mutableListOf<Point>()
 
 		val latch = CountDownLatch(5)
