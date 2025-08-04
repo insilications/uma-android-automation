@@ -368,7 +368,7 @@ class Game(val myContext: Context) {
 	fun startComprehensiveTrainingFailureOCRTest() {
 		printToLog("\n[TEST] Now beginning Comprehensive Training Failure OCR test on the Training screen for all 5 trainings on display.")
 		printToLog("[TEST] Note that this test is dependent on having the correct scale.")
-		findStatsAndPercentages(test = true)
+		analyzeTrainings(test = true)
 		printTrainingMap()
 	}
 
@@ -554,7 +554,7 @@ class Game(val myContext: Context) {
 		if (findAndTapImage("training_option", region = imageUtils.regionBottomHalf)) {
 			// Acquire the percentages and stat gains for each training.
 			wait(0.5)
-			findStatsAndPercentages()
+			analyzeTrainings()
 
 			if (trainingMap.isEmpty()) {
 				printToLog("[TRAINING] Backing out of Training and returning on the Main screen.")
@@ -582,12 +582,12 @@ class Game(val myContext: Context) {
 	}
 
 	/**
-	 * Find the success percentages and stat gain for each training and assign them to the MutableMap object to be shared across the whole class.
+	 * Analyze all 5 Trainings for their details including stat gain, rainbows, etc.
 	 *
 	 * @param test Flag that forces the failure chance through even if it is not in the acceptable range for testing purposes.
 	 */
-	private fun findStatsAndPercentages(test: Boolean = false) {
-		printToLog("\n[TRAINING] Checking for success percentages and total stat increases for training selection...")
+	private fun analyzeTrainings(test: Boolean = false) {
+		printToLog("\n[TRAINING] Now starting process to analyze all 5 Trainings.")
 
 		// Acquire the position of the speed stat text.
 		val (speedStatTextLocation, _) = if (campaign == "Ao Haru") {
@@ -731,7 +731,7 @@ class Game(val myContext: Context) {
 					trainingMap.put(training, newTraining)
 				}
 
-				printToLog("[TRAINING] Process to determine stat gains and failure percentages completed.")
+				printToLog("[TRAINING] Process to analyze all 5 Trainings complete.")
 			} else {
 				// Clear the Training map if the bot failed to have enough energy to conduct the training.
 				printToLog("[TRAINING] $failureChance% is not within acceptable range of ${maximumFailureChance}%. Proceeding to recover energy.")
