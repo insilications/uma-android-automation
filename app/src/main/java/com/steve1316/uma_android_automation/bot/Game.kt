@@ -1290,7 +1290,7 @@ class Game(val myContext: Context) {
 
 					// Now confirm the completion of a Training Goal popup.
 					printToLog("[RACE] There was a Training Goal popup. Confirming it now.")
-					findAndTapImage("race_end", tries = 10, region = imageUtils.regionBottomHalf)
+					findAndTapImage("next", tries = 10, region = imageUtils.regionBottomHalf)
 				}
 			} else if (findAndTapImage("next", tries = 10, region = imageUtils.regionBottomHalf)) {
 				// Same as above but without the longer delay.
