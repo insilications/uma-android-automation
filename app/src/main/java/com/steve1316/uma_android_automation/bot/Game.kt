@@ -17,6 +17,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.opencv.core.Point
 import java.text.DecimalFormat
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.pow
 
@@ -665,11 +666,66 @@ class Game(val myContext: Context) {
 					}
 
 					// Update the object in the training map.
+					// Use CountDownLatch to run the 3 operations in parallel to cut down on processing time.
+					val latch = CountDownLatch(3)
+
+					// Variables to store results from parallel threads.
+					var statGains: IntArray = intArrayOf()
+					var failureChance: Int = -1
+					var relationshipBars: ArrayList<ImageUtils.BarFillResult> = arrayListOf()
+
+					// Get the Points and source Bitmap beforehand before starting the threads to make them safe for parallel processing.
+					val (skillPointsLocation, sourceBitmap) = imageUtils.findImage("skill_points", tries = 1, region = imageUtils.regionMiddle)
+					val (trainingSelectionLocation, _) = imageUtils.findImage("training_failure_chance", tries = 1, region = imageUtils.regionBottomHalf)
+
+					// Thread 1: Determine stat gains.
+					Thread {
+						try {
+							statGains = imageUtils.determineStatGainFromTraining(sourceBitmap, skillPointsLocation!!)
+						} catch (e: Exception) {
+							printToLog("[ERROR] Error in determineStatGainFromTraining: ${e.message}", isError = true)
+							statGains = intArrayOf(0, 0, 0, 0, 0)
+						} finally {
+							latch.countDown()
+						}
+					}.start()
+
+					// Thread 2: Find failure chance.
+					Thread {
+						try {
+							failureChance = imageUtils.findTrainingFailureChance(sourceBitmap, trainingSelectionLocation!!)
+						} catch (e: Exception) {
+							printToLog("[ERROR] Error in findTrainingFailureChance: ${e.message}", isError = true)
+							failureChance = -1
+						} finally {
+							latch.countDown()
+						}
+					}.start()
+
+					// Thread 3: Analyze relationship bars.
+					Thread {
+						try {
+							relationshipBars = imageUtils.analyzeRelationshipBars(sourceBitmap)
+						} catch (e: Exception) {
+							printToLog("[ERROR] Error in analyzeRelationshipBars: ${e.message}", isError = true)
+							relationshipBars = arrayListOf()
+						} finally {
+							latch.countDown()
+						}
+					}.start()
+
+					// Wait for all threads to complete.
+					try {
+						latch.await(10, TimeUnit.SECONDS)
+					} catch (_: InterruptedException) {
+						printToLog("[ERROR] Parallel training analysis timed out", isError = true)
+					}
+
 					val newTraining = Training(
 						name = training,
-						statGains = imageUtils.determineStatGainFromTraining(),
-						failureChance = imageUtils.findTrainingFailureChance(),
-						relationshipBars = imageUtils.analyzeRelationshipBars(),
+						statGains = statGains,
+						failureChance = failureChance,
+						relationshipBars = relationshipBars,
 						isRainbow = imageUtils.findImage("training_rainbow", tries = 1, imageUtils.regionBottomHalf, suppressError = true).first != null
 					)
 					trainingMap.put(training, newTraining)
