@@ -593,7 +593,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		templateMat.release()
 		clampedTemplateMat?.release()
 		resultMat.release()
-		
+
 		return matchLocations
 	}
 
@@ -1334,47 +1334,47 @@ class ImageUtils(context: Context, private val game: Game) {
 		var allStatBlocks = mutableListOf<Point>()
 
 		val latch = CountDownLatch(5)
-		
+
 		// Create arrays to store results from each thread.
 		val speedBlocks = arrayListOf<Point>()
 		val staminaBlocks = arrayListOf<Point>()
 		val powerBlocks = arrayListOf<Point>()
 		val gutsBlocks = arrayListOf<Point>()
 		val witBlocks = arrayListOf<Point>()
-		
+
 		// Start parallel threads for each findAll call, passing the same source bitmap.
 		Thread {
 			speedBlocks.addAll(findAllWithBitmap("stat_speed_block", sourceBitmap, region = customRegion))
 			latch.countDown()
 		}.start()
-		
+
 		Thread {
 			staminaBlocks.addAll(findAllWithBitmap("stat_stamina_block", sourceBitmap, region = customRegion))
 			latch.countDown()
 		}.start()
-		
+
 		Thread {
 			powerBlocks.addAll(findAllWithBitmap("stat_power_block", sourceBitmap, region = customRegion))
 			latch.countDown()
 		}.start()
-		
+
 		Thread {
 			gutsBlocks.addAll(findAllWithBitmap("stat_guts_block", sourceBitmap, region = customRegion))
 			latch.countDown()
 		}.start()
-		
+
 		Thread {
 			witBlocks.addAll(findAllWithBitmap("stat_wit_block", sourceBitmap, region = customRegion))
 			latch.countDown()
 		}.start()
-		
+
 		// Wait for all threads to complete.
 		try {
 			latch.await(10, TimeUnit.SECONDS)
 		} catch (_: InterruptedException) {
 			game.printToLog("[ERROR] Parallel findAll operations timed out.", tag = tag, isError = true)
 		}
-		
+
 		// Combine all results.
 		allStatBlocks.addAll(speedBlocks)
 		allStatBlocks.addAll(staminaBlocks)
@@ -1489,7 +1489,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		val (_, statAptitudeSTemplate) = getBitmaps("stat_aptitude_S")
 		val (_, statAptitudeATemplate) = getBitmaps("stat_aptitude_A")
 		val (_, statAptitudeBTemplate) = getBitmaps("stat_aptitude_B")
-		
+
 		val distances = listOf("Sprint", "Mile", "Medium", "Long")
 		var bestAptitudeDistance = ""
 		var bestAptitudeLevel = -1 // -1 = none, 0 = B, 1 = A, 2 = S
@@ -1505,9 +1505,9 @@ class ImageUtils(context: Context, private val game: Game) {
 				}
 				bestAptitudeLevel < 1 && match(croppedBitmap, statAptitudeATemplate!!, "stat_aptitude_A") -> {
 					// A aptitude found (pick the leftmost aptitude) - better than B, but keep looking for S.
-                    bestAptitudeDistance = distance
-                    bestAptitudeLevel = 1
-                }
+					bestAptitudeDistance = distance
+					bestAptitudeLevel = 1
+				}
 				bestAptitudeLevel < 0 && match(croppedBitmap, statAptitudeBTemplate!!, "stat_aptitude_B") -> {
 					// B aptitude found - only use if no A aptitude found yet.
 					bestAptitudeDistance = distance
@@ -1517,9 +1517,9 @@ class ImageUtils(context: Context, private val game: Game) {
 		}
 
 		return bestAptitudeDistance.ifEmpty {
-            game.printToLog("[WARNING] Could not determine the preferred distance with at least B aptitude. Setting to Medium by default.", tag = tag, isError = true)
-            "Medium"
-        }
+			game.printToLog("[WARNING] Could not determine the preferred distance with at least B aptitude. Setting to Medium by default.", tag = tag, isError = true)
+			"Medium"
+		}
 	}
 
 	/**
@@ -1837,7 +1837,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		} else {
 			game.printToLog("[ERROR] Could not find the skill points location to start determining stat gains.", tag = tag, isError = true)
 		}
-		
+
 		return threadSafeResults
 	}
 
@@ -2026,14 +2026,14 @@ class ImageUtils(context: Context, private val game: Game) {
 
 	/**
 	 * Constructs the final integer value from matched template locations of numbers by analyzing spatial arrangement.
-	 * 
+	 *
 	 * The function is designed for OCR-like scenarios where individual character templates
 	 * are matched separately and need to be reconstructed into a complete number.
 	 *
 	 * If matchResults contains: {"+" -> [(10, 20)], "1" -> [(15, 20)], "2" -> [(20, 20)]}, it returns: 12 (from string "+12").
-	 * 
+	 *
 	 * @param matchResults Map of template names (e.g., "0", "1", "2", "+") to their match locations.
-	 * 
+	 *
 	 * @return The constructed integer value or -1 if it failed.
 	 */
 	private fun constructIntegerFromMatches(matchResults: Map<String, MutableList<Point>>): Int {

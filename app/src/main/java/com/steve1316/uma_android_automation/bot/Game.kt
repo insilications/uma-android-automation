@@ -97,32 +97,32 @@ class Game(val myContext: Context) {
 		val relationshipBars: ArrayList<ImageUtils.BarFillResult>,
 		val isRainbow: Boolean
 	) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
+		override fun equals(other: Any?): Boolean {
+			if (this === other) return true
+			if (javaClass != other?.javaClass) return false
 
-            other as Training
+			other as Training
 
-            if (isRainbow != other.isRainbow) return false
-            if (name != other.name) return false
-            if (!statGains.contentEquals(other.statGains)) return false
+			if (isRainbow != other.isRainbow) return false
+			if (name != other.name) return false
+			if (!statGains.contentEquals(other.statGains)) return false
 
-            return true
-        }
+			return true
+		}
 
-        override fun hashCode(): Int {
-            var result = isRainbow.hashCode()
-            result = 31 * result + name.hashCode()
-            result = 31 * result + statGains.contentHashCode()
-            return result
-        }
-    }
+		override fun hashCode(): Int {
+			var result = isRainbow.hashCode()
+			result = 31 * result + name.hashCode()
+			result = 31 * result + statGains.contentHashCode()
+			return result
+		}
+	}
 
-    data class Date(
+	data class Date(
 		val year: Int,
 		val phase: String,
 		val month: Int,
-        val turnNumber: Int
+		val turnNumber: Int
 	)
 
 	////////////////////////////////////////////////////////////////////
@@ -172,7 +172,7 @@ class Game(val myContext: Context) {
 	 * @return String of HH:MM:SS format of the elapsed time.
 	 */
 	@SuppressLint("DefaultLocale")
-    private fun printTime(): String {
+	private fun printTime(): String {
 		val elapsedMillis: Long = System.currentTimeMillis() - startTime
 
 		return String.format(
@@ -499,7 +499,7 @@ class Game(val myContext: Context) {
 				recoverInjuryLocation.y.toInt() + 15,
 				intArrayOf(151, 105, 243),
 				10
-		)) {
+			)) {
 			if (findAndTapImage("recover_injury", tries = 1, region = imageUtils.regionBottomHalf)) {
 				wait(0.3)
 				if (imageUtils.confirmLocation("recover_injury", tries = 1, region = imageUtils.regionMiddle)) {
@@ -787,7 +787,7 @@ class Game(val myContext: Context) {
 
 					printToLog(
 						"[TRAINING] Penalizing score of ${training.name} Training by ${decimalFormat.format(penalized)} from " +
-							"${decimalFormat.format(score)} to ${decimalFormat.format(score - penalized)} due to exceeding stat cap."
+								"${decimalFormat.format(score)} to ${decimalFormat.format(score - penalized)} due to exceeding stat cap."
 					)
 
 					score -= penalized
@@ -805,7 +805,7 @@ class Game(val myContext: Context) {
 
 			printToLog(
 				"[TRAINING] Applying diminishing return to ${training.name} Training by ${decimalFormat.format(1.0 / (1.0 + (0.1 * count)))} from " +
-					"${decimalFormat.format(score)} to ${decimalFormat.format(score * (1.0 / (1.0 + (0.1 * count))))} to prevent over-specialization into one stat."
+						"${decimalFormat.format(score)} to ${decimalFormat.format(score * (1.0 / (1.0 + (0.1 * count))))} to prevent over-specialization into one stat."
 			)
 
 			score *= 1.0 / (1.0 + (0.1 * count))
@@ -1193,15 +1193,15 @@ class Game(val myContext: Context) {
 				listOfFans.add(fans)
 
 				// Select the next extra race.
-                if (imageUtils.isTablet) {
-                    tap(extraRaceLocation[count].x - imageUtils.relWidth((100 * 1.36).toInt()), extraRaceLocation[count].y + imageUtils.relHeight((150 * 1.50).toInt()), "race_extra_selection")
-                } else {
-                    tap(extraRaceLocation[count].x - imageUtils.relWidth(100), extraRaceLocation[count].y + imageUtils.relHeight(150), "race_extra_selection")
-                }
+				if (imageUtils.isTablet) {
+					tap(extraRaceLocation[count].x - imageUtils.relWidth((100 * 1.36).toInt()), extraRaceLocation[count].y + imageUtils.relHeight((150 * 1.50).toInt()), "race_extra_selection")
+				} else {
+					tap(extraRaceLocation[count].x - imageUtils.relWidth(100), extraRaceLocation[count].y + imageUtils.relHeight(150), "race_extra_selection")
+				}
 
-                wait(0.5)
+				wait(0.5)
 
-                count++
+				count++
 			}
 
 			val fansList = listOfFans.joinToString(", ") { it.toString() }
@@ -1451,8 +1451,8 @@ class Game(val myContext: Context) {
 	}
 
 	/**
-    * Updates the current stat value mapping by reading the character's current stats from the Main screen.
-    */
+	 * Updates the current stat value mapping by reading the character's current stats from the Main screen.
+	 */
 	fun updateStatValueMapping() {
 		printToLog("\n[STATS] Updating stat value mapping.")
 		currentStatsMap = imageUtils.determineStatValues(currentStatsMap)
@@ -1668,10 +1668,10 @@ class Game(val myContext: Context) {
 			val uraFinaleCampaign = Campaign(this)
 			uraFinaleCampaign.start()
 		}
-		
+
 		val endTime: Long = System.currentTimeMillis()
 		Log.d(tag, "Total Runtime: ${endTime - startTime}ms")
-		
+
 		return true
 	}
 }
