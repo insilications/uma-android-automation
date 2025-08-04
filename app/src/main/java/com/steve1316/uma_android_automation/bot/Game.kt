@@ -999,8 +999,8 @@ class Game(val myContext: Context) {
 						printToLog("[TRAINING-EVENT] Adding weight for option #${optionSelected + 1} of -50 for event chain ending.")
 						selectionWeight[optionSelected] += -50
 					} else if (line.lowercase().contains("(random)")) {
-						printToLog("[TRAINING-EVENT] Adding weight for option #${optionSelected + 1} of -50 for random reward.")
-						selectionWeight[optionSelected] += -50
+						printToLog("[TRAINING-EVENT] Adding weight for option #${optionSelected + 1} of -10 for random reward.")
+						selectionWeight[optionSelected] += -10
 					} else if (line.lowercase().contains("randomly")) {
 						printToLog("[TRAINING-EVENT] Adding weight for option #${optionSelected + 1} of 50 for random options.")
 						selectionWeight[optionSelected] += 50
