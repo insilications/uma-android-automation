@@ -289,14 +289,17 @@ class Game(val myContext: Context) {
 	 * @param y The y-coordinate.
 	 * @param imageName The template image name to use for tap location randomization.
 	 * @param taps The number of taps.
+	 * @param ignoreWaiting Flag to ignore checking if the game is busy loading.
 	 */
-	fun tap(x: Double, y: Double, imageName: String, taps: Int = 1) {
+	fun tap(x: Double, y: Double, imageName: String, taps: Int = 1, ignoreWaiting: Boolean = false) {
 		// Perform the tap.
 		gestureUtils.tap(x, y, imageName, taps = taps)
 
-		// Now check if the game is waiting for a server response from the tap and wait if necessary.
-		wait(0.20)
-		waitForLoading()
+		if (!ignoreWaiting) {
+			// Now check if the game is waiting for a server response from the tap and wait if necessary.
+			wait(0.20)
+			waitForLoading()
+		}
 	}
 
 	/**
@@ -637,12 +640,27 @@ class Game(val myContext: Context) {
 					if (newX != 0.0) {
 						if (imageUtils.isTablet) {
 							if (training == "Stamina") {
-								tap(speedStatTextLocation.x + imageUtils.relWidth((newX * 1.05).toInt()), speedStatTextLocation.y + imageUtils.relHeight((319 * 1.50).toInt()), "training_option_circular")
+								tap(
+									speedStatTextLocation.x + imageUtils.relWidth((newX * 1.05).toInt()),
+									speedStatTextLocation.y + imageUtils.relHeight((319 * 1.50).toInt()),
+									"training_option_circular",
+									ignoreWaiting = true
+								)
 							} else {
-								tap(speedStatTextLocation.x + imageUtils.relWidth((newX * 1.36).toInt()), speedStatTextLocation.y + imageUtils.relHeight((319 * 1.50).toInt()), "training_option_circular")
+								tap(
+									speedStatTextLocation.x + imageUtils.relWidth((newX * 1.36).toInt()),
+									speedStatTextLocation.y + imageUtils.relHeight((319 * 1.50).toInt()),
+									"training_option_circular",
+									ignoreWaiting = true
+								)
 							}
 						} else {
-							tap(speedStatTextLocation.x + imageUtils.relWidth(newX.toInt()), speedStatTextLocation.y + imageUtils.relHeight(319), "training_option_circular")
+							tap(
+								speedStatTextLocation.x + imageUtils.relWidth(newX.toInt()),
+								speedStatTextLocation.y + imageUtils.relHeight(319),
+								"training_option_circular",
+								ignoreWaiting = true
+							)
 						}
 					}
 
