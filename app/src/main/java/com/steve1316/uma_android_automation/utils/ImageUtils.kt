@@ -969,21 +969,29 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
-	 * Find the success percentage chance on the currently selected stat.
+	 * Find the success percentage chance on the currently selected stat. Parameters are optional to allow for thread-safe operations.
+	 *
+	 * @param sourceBitmap Bitmap of the source image separately taken. Defaults to null.
+	 * @param trainingSelectionLocation Point location of the template image separately taken. Defaults to null.
 	 *
 	 * @return Integer representing the percentage.
 	 */
-	fun findTrainingFailureChance(): Int {
+	fun findTrainingFailureChance(sourceBitmap: Bitmap? = null, trainingSelectionLocation: Point? = null): Int {
 		// Crop the source screenshot to hold the success percentage only.
-		val (trainingSelectionLocation, sourceBitmap) = findImage("training_failure_chance")
+		val (trainingSelectionLocation, sourceBitmap) = if (sourceBitmap == null && trainingSelectionLocation == null) {
+			findImage("training_failure_chance")
+		} else {
+			Pair(trainingSelectionLocation, sourceBitmap)
+		}
+
 		if (trainingSelectionLocation == null) {
 			return -1
 		}
 
 		val croppedBitmap: Bitmap = if (isTablet) {
-			Bitmap.createBitmap(sourceBitmap, relX(trainingSelectionLocation.x, -65), relY(trainingSelectionLocation.y, 23), relWidth(130), relHeight(50))
+			Bitmap.createBitmap(sourceBitmap!!, relX(trainingSelectionLocation.x, -65), relY(trainingSelectionLocation.y, 23), relWidth(130), relHeight(50))
 		} else {
-			Bitmap.createBitmap(sourceBitmap, relX(trainingSelectionLocation.x, -45), relY(trainingSelectionLocation.y, 15), relWidth(100), relHeight(37))
+			Bitmap.createBitmap(sourceBitmap!!, relX(trainingSelectionLocation.x, -45), relY(trainingSelectionLocation.y, 15), relWidth(100), relHeight(37))
 		}
 
 		val resizedBitmap = croppedBitmap.scale(croppedBitmap.width * 2, croppedBitmap.height * 2)
@@ -1321,15 +1329,17 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
-	 * Analyze the relationship bars on the Training screen for the currently selected training.
+	 * Analyze the relationship bars on the Training screen for the currently selected training. Parameter is optional to allow for thread-safe operations.
+	 *
+	 * @param sourceBitmap Bitmap of the source image separately taken. Defaults to null.
 	 *
 	 * @return A list of the results for each relationship bar.
 	 */
-	fun analyzeRelationshipBars(): ArrayList<BarFillResult> {
+	fun analyzeRelationshipBars(sourceBitmap: Bitmap? = null): ArrayList<BarFillResult> {
 		val customRegion = intArrayOf(displayWidth - (displayWidth / 3), 0, (displayWidth / 3), displayHeight - (displayHeight / 3))
 
 		// Take a single screenshot first to avoid buffer overflow.
-		val (sourceBitmap, _) = getBitmaps("stat_maxed")
+		val sourceBitmap = sourceBitmap ?: getSourceBitmap()
 
 		var allStatBlocks = mutableListOf<Point>()
 
@@ -1722,20 +1732,27 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
-    * Determines the stat gain values from training.
-    *
-    * This function uses template matching to find individual digits and the "+" symbol in the
-    * stat gain area of the training screen. It processes templates for digits 0-9 and the "+"
-    * symbol, then constructs the final integer value by analyzing the spatial arrangement
-    * of detected matches.
-    *
-    * @return Array of 5 detected stat gain values as integers, or -1 for failed detections.
-    */
-	fun determineStatGainFromTraining(): IntArray {
+	 * Determines the stat gain values from training. Parameters are optional to allow for thread-safe operations.
+	 *
+	 * This function uses template matching to find individual digits and the "+" symbol in the
+	 * stat gain area of the training screen. It processes templates for digits 0-9 and the "+"
+	 * symbol, then constructs the final integer value by analyzing the spatial arrangement
+	 * of detected matches.
+	 *
+	 * @param sourceBitmap Bitmap of the source image separately taken. Defaults to null.
+	 * @param skillPointsLocation Point location of the template image separately taken. Defaults to null.
+	 *
+	 * @return Array of 5 detected stat gain values as integers, or -1 for failed detections.
+	 */
+	fun determineStatGainFromTraining(sourceBitmap: Bitmap? = null, skillPointsLocation: Point? = null): IntArray {
 		val templates = listOf("+", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
 		val statNames = listOf("Speed", "Stamina", "Power", "Guts", "Wit")
 
-		val (skillPointsLocation, sourceBitmap) = findImage("skill_points")
+		val (skillPointsLocation, sourceBitmap) = if (sourceBitmap == null && skillPointsLocation == null) {
+			findImage("skill_points")
+		} else {
+			Pair(skillPointsLocation, sourceBitmap)
+		}
 
 		val threadSafeResults = IntArray(5)
 
@@ -1755,7 +1772,7 @@ class ImageUtils(context: Context, private val game: Game) {
 					try {
 						val statName = statNames[i]
 						val xOffset = -934 + (i * 180)
-						val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(skillPointsLocation.x, xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82))
+						val croppedBitmap = Bitmap.createBitmap(sourceBitmap!!, relX(skillPointsLocation.x, xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82))
 
 						// Convert to Mat and then turn it to grayscale.
 						val sourceMat = Mat()
