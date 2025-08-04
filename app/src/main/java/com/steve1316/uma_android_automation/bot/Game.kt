@@ -27,14 +27,14 @@ class Game(val myContext: Context) {
 	val imageUtils: ImageUtils = ImageUtils(myContext, this)
 	val gestureUtils: MyAccessibilityService = MyAccessibilityService.getInstance()
 	private val textDetection: TextDetection = TextDetection(this, imageUtils)
-	
+
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// SharedPreferences
 	private var sharedPreferences: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(myContext)
 	private val campaign: String = sharedPreferences.getString("campaign", "")!!
 	private val debugMode: Boolean = sharedPreferences.getBoolean("debugMode", false)
-	
+
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// Training
@@ -66,7 +66,7 @@ class Game(val myContext: Context) {
 	private var raceRepeatWarningCheck = false
 	var encounteredRacingPopup = false
 	var skipRacing = false
-	
+
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// Stops
@@ -75,14 +75,14 @@ class Game(val myContext: Context) {
 	private val enablePopupCheck: Boolean = sharedPreferences.getBoolean("enablePopupCheck", false)
 	private val enableStopOnMandatoryRace: Boolean = sharedPreferences.getBoolean("enableStopOnMandatoryRace", false)
 	var detectedMandatoryRaceCheck = false
-	
+
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// Misc
 	private var currentDate: Date = Date(1, "Early", 1, 1)
 	private var inheritancesDone = 0
 	private val startTime: Long = System.currentTimeMillis()
-	
+
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 
@@ -169,7 +169,7 @@ class Game(val myContext: Context) {
 	@SuppressLint("DefaultLocale")
     private fun printTime(): String {
 		val elapsedMillis: Long = System.currentTimeMillis() - startTime
-		
+
 		return String.format(
 			"%02d:%02d:%02d",
 			TimeUnit.MILLISECONDS.toHours(elapsedMillis),
@@ -177,7 +177,7 @@ class Game(val myContext: Context) {
 			TimeUnit.MILLISECONDS.toSeconds(elapsedMillis) - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS.toMinutes(elapsedMillis))
 		)
 	}
-	
+
 	/**
 	 * Print the specified message to debug console and then saves the message to the log.
 	 *
@@ -192,7 +192,7 @@ class Game(val myContext: Context) {
 		} else {
 			Log.e(tag, message)
 		}
-		
+
 		// Remove the newline prefix if needed and place it where it should be.
 		if (message.startsWith("\n")) {
 			val newMessage = message.removePrefix("\n")
@@ -209,7 +209,7 @@ class Game(val myContext: Context) {
 			}
 		}
 	}
-	
+
 	/**
 	 * Wait the specified seconds to account for ping or loading.
 	 * It also checks for interruption every 100ms to allow faster interruption and checks if the game is still in the middle of loading.
@@ -221,13 +221,13 @@ class Game(val myContext: Context) {
 		val totalMillis = (seconds * 1000).toLong()
 		// Check for interruption every 100ms.
 		val checkInterval = 100L
-		
+
 		var remainingMillis = totalMillis
 		while (remainingMillis > 0) {
 			if (!BotService.isRunning) {
 				throw InterruptedException()
 			}
-			
+
 			val sleepTime = minOf(checkInterval, remainingMillis)
 			runBlocking {
 				delay(sleepTime)
@@ -250,7 +250,7 @@ class Game(val myContext: Context) {
 			wait(0.5, skipWaitingForLoading = true)
 		}
 	}
-	
+
 	/**
 	 * Find and tap the specified image.
 	 *
@@ -265,9 +265,9 @@ class Game(val myContext: Context) {
 		if (debugMode) {
 			printToLog("[DEBUG] Now attempting to find and click the \"$imageName\" button.")
 		}
-		
+
 		val tempLocation: Point? = imageUtils.findImage(imageName, tries = tries, region = region, suppressError = suppressError).first
-		
+
 		return if (tempLocation != null) {
 			Log.d(tag, "Found and going to tap: $imageName")
 			tap(tempLocation.x, tempLocation.y, imageName, taps = taps)
@@ -330,7 +330,7 @@ class Game(val myContext: Context) {
 				printToLog("[TEST] Median confidence for $templateName: $medianConfidence")
 			}
 		}
-		
+
 		if (medianScales.isNotEmpty()) {
 			printToLog("\n[TEST] The following are the recommended scales to set (pick one as a whole number value): $medianScales.")
 			printToLog("[TEST] The following are the recommended confidences to set (pick one as a whole number value): $medianConfidences.")
@@ -362,17 +362,17 @@ class Game(val myContext: Context) {
 		findStatsAndPercentages(test = true)
 		printTrainingMap()
 	}
-	
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Helper functions to be shared amongst the various Campaigns.
-	
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Functions to check what screen the bot is at.
-	
+
 	/**
 	 * Checks if the bot is at the Main screen or the screen with available options to undertake.
 	 * This will also make sure that the Main screen does not contain the option to select a race.
@@ -399,7 +399,7 @@ class Game(val myContext: Context) {
 			false
 		}
 	}
-	
+
 	/**
 	 * Checks if the bot is at the Training Event screen with an active event with options to select on screen.
 	 *
@@ -414,7 +414,7 @@ class Game(val myContext: Context) {
 			false
 		}
 	}
-	
+
 	/**
 	 * Checks if the bot is at the preparation screen with a mandatory race needing to be completed.
 	 *
@@ -452,7 +452,7 @@ class Game(val myContext: Context) {
 			false
 		}
 	}
-	
+
 	/**
 	 * Checks if the day number is odd to be eligible to run an extra race, excluding Summer where extra racing is not allowed.
 	 *
@@ -461,13 +461,13 @@ class Game(val myContext: Context) {
 	fun checkExtraRaceAvailability(): Boolean {
 		val dayNumber = imageUtils.determineDayForExtraRace()
 		printToLog("\n[INFO] Current remaining number of days before the next mandatory race: $dayNumber.")
-		
+
 		return enableFarmingFans && dayNumber % daysToRunExtraRaces == 0 && !raceRepeatWarningCheck &&
 				imageUtils.findImage("race_select_extra_locked_uma_finals", tries = 1, region = imageUtils.regionBottomHalf).first == null &&
 				imageUtils.findImage("race_select_extra_locked", tries = 1, region = imageUtils.regionBottomHalf).first == null &&
 				imageUtils.findImage("recover_energy_summer", tries = 1, region = imageUtils.regionBottomHalf).first == null
 	}
-	
+
 	/**
 	 * Checks if the bot is at the Ending screen detailing the overall results of the run.
 	 *
@@ -481,7 +481,7 @@ class Game(val myContext: Context) {
 			false
 		}
 	}
-	
+
 	/**
 	 * Checks if the bot has a injury.
 	 *
@@ -530,28 +530,28 @@ class Game(val myContext: Context) {
 			false
 		}
 	}
-	
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Functions to execute Training by determining failure percentages, overall stat gains and stat weights.
-	
+
 	/**
 	 * The entry point for handling Training.
 	 */
 	fun handleTraining() {
 		printToLog("\n[TRAINING] Starting Training process...")
-		
+
 		// Enter the Training screen.
 		if (findAndTapImage("training_option", region = imageUtils.regionBottomHalf)) {
 			// Acquire the percentages and stat gains for each training.
 			wait(0.5)
 			findStatsAndPercentages()
-			
+
 			if (trainingMap.isEmpty()) {
 				printToLog("[TRAINING] Backing out of Training and returning on the Main screen.")
 				findAndTapImage("back", region = imageUtils.regionBottomHalf)
 				wait(1.0)
-				
+
 				if (checkMainScreen()) {
 					printToLog("[TRAINING] Will recover energy due to either failure chance was high enough to do so or no failure chances were detected via OCR.")
 					recoverEnergy()
@@ -561,17 +561,17 @@ class Game(val myContext: Context) {
 			} else {
 				// Now select the training option with the highest weight.
 				executeTraining()
-				
+
 				firstTrainingCheck = false
 			}
-			
+
 			raceRepeatWarningCheck = false
 			printToLog("\n[TRAINING] Training process completed.")
 		} else {
 			printToLog("[ERROR] Cannot start the Training process. Moving on...", isError = true)
 		}
 	}
-	
+
 	/**
 	 * Find the success percentages and stat gain for each training and assign them to the MutableMap object to be shared across the whole class.
 	 *
@@ -579,14 +579,14 @@ class Game(val myContext: Context) {
 	 */
 	private fun findStatsAndPercentages(test: Boolean = false) {
 		printToLog("\n[TRAINING] Checking for success percentages and total stat increases for training selection...")
-		
+
 		// Acquire the position of the speed stat text.
 		val (speedStatTextLocation, _) = if (campaign == "Ao Haru") {
 			imageUtils.findImage("aoharu_stat_speed", tries = 1, region = imageUtils.regionBottomHalf)
 		} else {
 			imageUtils.findImage("stat_speed", tries = 1, region = imageUtils.regionBottomHalf)
 		}
-		
+
 		if (speedStatTextLocation != null) {
 			// Perform a percentage check of Speed training to see if the bot has enough energy to do training. As a result, Speed training will be the one selected for the rest of the algorithm.
 			if (!imageUtils.confirmLocation("speed_training", tries = 1, region = imageUtils.regionTopHalf, suppressError = true)) {
@@ -599,7 +599,7 @@ class Game(val myContext: Context) {
 				printToLog("[WARNING] Skipping training due to not being able to confirm whether or not the bot is at the Training screen.")
 				return
 			}
-			
+
 			if (test || failureChance <= maximumFailureChance) {
 				printToLog("[TRAINING] $failureChance% within acceptable range of ${maximumFailureChance}%. Proceeding to acquire all other percentages and total stat increases...")
 				
@@ -661,7 +661,7 @@ class Game(val myContext: Context) {
 						)
 					}
 				}
-				
+
 				printToLog("[TRAINING] Process to determine stat gains and failure percentages completed.")
 			} else {
 				// Clear the Training map if the bot failed to have enough energy to conduct the training.
@@ -670,7 +670,7 @@ class Game(val myContext: Context) {
 			}
 		}
 	}
-	
+
 	/**
 	 * Execute the training with the highest stat weight.
 	 */
@@ -702,42 +702,42 @@ class Game(val myContext: Context) {
 		} else {
 			printToLog("[TRAINING] Conditions have not been met so training will not be done.")
 		}
-		
+
 		// Now reset the Training map.
 		trainingMap.clear()
 		
 		printToLog("[TRAINING] Process to execute training completed.")
 	}
-	
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Functions to handle Training Events with the help of the TextDetection class.
-	
+
 	/**
 	 * Start text detection to determine what Training Event it is and the event rewards for each option.
 	 * It will then select the best option according to the user's preferences. By default, it will choose the first option.
 	 */
 	fun handleTrainingEvent() {
 		printToLog("\n[TRAINING-EVENT] Starting Training Event process...")
-		
+
 		val (eventRewards, confidence) = textDetection.start()
-		
+
 		val regex = Regex("[a-zA-Z]+")
 		var optionSelected = 0
-		
+
 		// Double check if the bot is at the Main screen or not.
 		if (checkMainScreen()) {
 			return
 		}
-		
+
 		if (eventRewards.isNotEmpty() && eventRewards[0] != "") {
 			// Initialize the List.
 			val selectionWeight = List(eventRewards.size) { 0 }.toMutableList()
-			
+
 			// Sum up the stat gains with additional weight applied to stats that are prioritized.
 			eventRewards.forEach { reward ->
 				val formattedReward: List<String> = reward.split("\n")
-				
+
 				formattedReward.forEach { line ->
 					val formattedLine: String = regex
 						.replace(line, "")
@@ -855,7 +855,7 @@ class Game(val myContext: Context) {
 								selectionWeight[optionSelected] += finalStatValue
 							}
 						}
-						
+
 						// Apply normal weights to the rest of the stats.
 						if (!priorityStatCheck) {
 							val finalStatValue = try {
@@ -885,10 +885,10 @@ class Game(val myContext: Context) {
 
 					printToLog("[TRAINING-EVENT] Final weight for option #${optionSelected + 1} is: ${selectionWeight[optionSelected]}.")
 				}
-				
+
 				optionSelected++
 			}
-			
+
 			// Select the best option that aligns with the stat prioritization made in the Training options.
 			var max: Int? = selectionWeight.maxOrNull()
 			if (max == null) {
@@ -903,7 +903,7 @@ class Game(val myContext: Context) {
 			selectionWeight.forEachIndexed { index, weight ->
 				printToLog("Option ${index + 1}: $weight")
 			}
-			
+
 			// Format the string to display each option's rewards.
 			var eventRewardsString = ""
 			var optionNumber = 1
@@ -911,7 +911,7 @@ class Game(val myContext: Context) {
 				eventRewardsString += "Option $optionNumber: \"$reward\"\n"
 				optionNumber += 1
 			}
-			
+
 			val minimumConfidence = sharedPreferences.getInt("confidence", 80).toDouble() / 100.0
 			val resultString = if (confidence >= minimumConfidence) {
 				"[TRAINING-EVENT] For this Training Event consisting of:\n$eventRewardsString\nThe bot will select Option ${optionSelected + 1}: \"${eventRewards[optionSelected]}\" with a " +
@@ -919,13 +919,13 @@ class Game(val myContext: Context) {
 			} else {
 				"[TRAINING-EVENT] Since the confidence was less than the set minimum, first option will be selected."
 			}
-			
+
 			printToLog(resultString)
 		} else {
 			printToLog("[TRAINING-EVENT] First option will be selected since OCR failed to detect anything.")
 			optionSelected = 0
 		}
-		
+
 		val trainingOptionLocations: ArrayList<Point> = imageUtils.findAll("training_event_active")
 		val selectedLocation: Point? = if (trainingOptionLocations.isNotEmpty()) {
 			// Account for the situation where it could go out of bounds if the detected event options is incorrect and gives too many results.
@@ -938,18 +938,18 @@ class Game(val myContext: Context) {
 		} else {
 			imageUtils.findImage("training_event_active", tries = 5, region = imageUtils.regionMiddle).first
 		}
-		
+
 		if (selectedLocation != null) {
 			tap(selectedLocation.x + imageUtils.relWidth(100), selectedLocation.y, "training_event_active")
 		}
-		
+
 		printToLog("[TRAINING-EVENT] Process to handle detected Training Event completed.")
 	}
-	
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Functions to handle Race Events.
-	
+
 	/**
 	 * The entry point for handling mandatory or extra races.
 	 *
@@ -971,18 +971,18 @@ class Game(val myContext: Context) {
 		}
 
 		skipRacing = false
-		
+
 		// First, check if there is a mandatory or a extra race available. If so, head into the Race Selection screen.
 		// Note: If there is a mandatory race, the bot would be on the Home screen.
 		// Otherwise, it would have found itself at the Race Selection screen already (by way of the insufficient fans popup).
 		if (findAndTapImage("race_select_mandatory", tries = 1, region = imageUtils.regionBottomHalf)) {
 			printToLog("\n[RACE] Starting process for handling a mandatory race.")
-			
+
 			if (enableStopOnMandatoryRace) {
 				detectedMandatoryRaceCheck = true
 				return false
 			}
-			
+
 			// There is a mandatory race. Now confirm the selection and the resultant popup and then wait for the game to load.
 			wait(2.0)
 			printToLog("[RACE] Confirming the mandatory race selection.")
@@ -993,21 +993,21 @@ class Game(val myContext: Context) {
 			wait(2.0)
 
 			waitForLoading()
-			
+
 			// Skip the race if possible, otherwise run it manually.
 			val resultCheck: Boolean = if (imageUtils.findImage("race_skip_locked", tries = 5, region = imageUtils.regionBottomHalf).first == null) {
 				skipRace()
 			} else {
 				manualRace()
 			}
-			
+
 			finishRace(resultCheck)
-			
+
 			printToLog("[RACE] Racing process for Mandatory Race is completed.")
 			return true
 		} else if (findAndTapImage("race_select_extra", tries = 1, region = imageUtils.regionBottomHalf)) {
 			printToLog("\n[RACE] Starting process for handling a extra race.")
-			
+
 			// If there is a popup warning about repeating races 3+ times, stop the process and do something else other than racing.
 			if (imageUtils.findImage("race_repeat_warning").first != null) {
 				raceRepeatWarningCheck = true
@@ -1015,7 +1015,7 @@ class Game(val myContext: Context) {
 				findAndTapImage("cancel", region = imageUtils.regionBottomHalf)
 				return false
 			}
-			
+
 			// There is a extra race.
 			// Swipe up the list to get to the top and then select the first option.
 			val statusLocation = imageUtils.findImage("race_status").first
@@ -1025,7 +1025,7 @@ class Game(val myContext: Context) {
 			}
 			gestureUtils.swipe(statusLocation.x.toFloat(), statusLocation.y.toFloat() + 300, statusLocation.x.toFloat(), statusLocation.y.toFloat() + 888)
 			wait(1.0)
-			
+
 			// Now determine the best extra race with the following parameters: highest fans and double star prediction.
 			// First find the fans of only the extra races on the screen that match the double star prediction. Read only 3 extra races.
 			var count = 0
@@ -1047,7 +1047,7 @@ class Game(val myContext: Context) {
 					break
 				}
 				extraRaceLocation.add(selectedExtraRace)
-				
+
 				// Determine its fan gain and save it.
 				val fans = imageUtils.determineExtraRaceFans(extraRaceLocation[count], sourceBitmap, templateBitmap!!)
 				if (count == 0 && fans == -1) {
@@ -1056,7 +1056,7 @@ class Game(val myContext: Context) {
 					break
 				}
 				listOfFans.add(fans)
-				
+
 				// Select the next extra race.
                 if (imageUtils.isTablet) {
                     tap(extraRaceLocation[count].x - imageUtils.relWidth((100 * 1.36).toInt()), extraRaceLocation[count].y + imageUtils.relHeight((150 * 1.50).toInt()), "race_extra_selection")
@@ -1068,10 +1068,10 @@ class Game(val myContext: Context) {
 
                 count++
 			}
-			
+
 			val fansList = listOfFans.joinToString(", ") { it.toString() }
 			printToLog("[RACE] Number of fans detected for each extra race are: $fansList")
-			
+
 			// Next determine the maximum fans and select the extra race.
 			val maxFans: Int? = listOfFans.maxOrNull()
 			if (maxFans != null) {
@@ -1079,10 +1079,10 @@ class Game(val myContext: Context) {
 					printToLog("[WARNING] Max fans was returned as -1. Canceling the racing process and doing something else.")
 					return false
 				}
-				
+
 				// Get the index of the maximum fans.
 				val index = listOfFans.indexOf(maxFans)
-				
+
 				printToLog("[RACE] Selecting the extra race at option #${index + 1}.")
 
 				// Select the extra race that matches the double star prediction and the most fan gain.
@@ -1095,46 +1095,46 @@ class Game(val myContext: Context) {
 				printToLog("[WARNING] No extra races detected and thus no fan maximums were calculated. Canceling the racing process and doing something else.")
 				return false
 			}
-			
+
 			// Confirm the selection and the resultant popup and then wait for the game to load.
 			findAndTapImage("race_confirm", tries = 30, region = imageUtils.regionBottomHalf)
 			findAndTapImage("race_confirm", tries = 10, region = imageUtils.regionBottomHalf)
 			wait(2.0)
-			
+
 			// Skip the race if possible, otherwise run it manually.
 			val resultCheck: Boolean = if (imageUtils.findImage("race_skip_locked", tries = 5, region = imageUtils.regionBottomHalf).first == null) {
 				skipRace()
 			} else {
 				manualRace()
 			}
-			
+
 			finishRace(resultCheck, isExtra = true)
-			
+
 			printToLog("[RACE] Racing process for Extra Race is completed.")
 			return true
 		}
-		
+
 		return false
 	}
-	
+
 	/**
 	 * The entry point for handling standalone races if the user started the bot on the Racing screen.
 	 */
 	fun handleStandaloneRace() {
 		printToLog("\n[RACE] Starting Standalone Racing process...")
-		
+
 		// Skip the race if possible, otherwise run it manually.
 		val resultCheck: Boolean = if (imageUtils.findImage("race_skip_locked", tries = 5, region = imageUtils.regionBottomHalf).first == null) {
 			skipRace()
 		} else {
 			manualRace()
 		}
-		
+
 		finishRace(resultCheck)
-		
+
 		printToLog("[RACE] Racing process for Standalone Race is completed.")
 	}
-	
+
 	/**
 	 * Skips the current race to get to the results screen.
 	 *
@@ -1143,7 +1143,7 @@ class Game(val myContext: Context) {
 	private fun skipRace(): Boolean {
 		while (raceRetries >= 0) {
 			printToLog("[RACE] Skipping race...")
-			
+
 			// Press the skip button and then wait for your result of the race to show.
 			if (findAndTapImage("race_skip", tries = 30, region = imageUtils.regionBottomHalf)) {
 				printToLog("[RACE] Race was able to be skipped.")
@@ -1152,7 +1152,7 @@ class Game(val myContext: Context) {
 
 			// Now tap on the screen to get past the Race Result screen.
 			tap(350.0, 450.0, "ok", taps = 3)
-			
+
 			// Check if the race needed to be retried.
 			if (imageUtils.findImage("race_retry", tries = 5, region = imageUtils.regionBottomHalf, suppressError = true).first != null) {
 				if (disableRaceRetries) {
@@ -1168,10 +1168,10 @@ class Game(val myContext: Context) {
 				return true
 			}
 		}
-		
+
 		return false
 	}
-	
+
 	/**
 	 * Manually runs the current race to get to the results screen.
 	 *
@@ -1180,7 +1180,7 @@ class Game(val myContext: Context) {
 	private fun manualRace(): Boolean {
 		while (raceRetries >= 0) {
 			printToLog("[RACE] Skipping manual race...")
-			
+
 			// Press the manual button.
 			if (findAndTapImage("race_manual", tries = 30, region = imageUtils.regionBottomHalf)) {
 				printToLog("[RACE] Started the manual race.")
@@ -1194,7 +1194,7 @@ class Game(val myContext: Context) {
 			}
 
 			waitForLoading()
-			
+
 			// Now press the confirm button to get past the list of participants.
 			if (findAndTapImage("race_confirm", tries = 30, region = imageUtils.regionBottomHalf)) {
 				printToLog("[RACE] Dismissed the list of participants.")
@@ -1230,7 +1230,7 @@ class Game(val myContext: Context) {
 
 			waitForLoading()
 			wait(1.0)
-			
+
 			// Check if the race needed to be retried.
 			if (imageUtils.findImage("race_retry", tries = 5, region = imageUtils.regionBottomHalf, suppressError = true).first != null) {
 				if (disableRaceRetries) {
@@ -1247,14 +1247,14 @@ class Game(val myContext: Context) {
 				if (findAndTapImage("race_accept_trophy", tries = 5, region = imageUtils.regionBottomHalf)) {
 					printToLog("[RACE] Closing popup to claim trophy...")
 				}
-				
+
 				return true
 			}
 		}
-		
+
 		return false
 	}
-	
+
 	/**
 	 * Finishes up and confirms the results of the race and its success.
 	 *
@@ -1267,7 +1267,7 @@ class Game(val myContext: Context) {
 			notificationMessage = "Bot has run out of retry attempts for racing. Stopping the bot now..."
 			throw IllegalStateException()
 		}
-		
+
 		// Bot will be at the screen where it shows the final positions of all participants.
 		// Press the confirm button and wait to see the triangle of fans.
 		printToLog("[RACE] Now attempting to confirm the final positions of all participants and number of gained fans")
@@ -1276,10 +1276,10 @@ class Game(val myContext: Context) {
 
 			// Now tap on the screen to get to the next screen.
 			tap(350.0, 750.0, "ok", taps = 3)
-			
+
 			// Now press the end button to finish the race.
 			findAndTapImage("race_end", tries = 30, region = imageUtils.regionBottomHalf)
-			
+
 			if (!isExtra) {
 				printToLog("[RACE] Seeing if a Training Goal popup will appear.")
 				// Wait until the popup showing the completion of a Training Goal appears and confirm it.
@@ -1301,7 +1301,7 @@ class Game(val myContext: Context) {
 			printToLog("[ERROR] Cannot start the cleanup process for finishing the race. Moving on...", isError = true)
 		}
 	}
-	
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Helper Functions
@@ -1354,7 +1354,7 @@ class Game(val myContext: Context) {
 			false
 		}
 	}
-	
+
 	/**
 	 * Attempt to recover energy.
 	 *
@@ -1381,7 +1381,7 @@ class Game(val myContext: Context) {
 			}
 		}
 	}
-	
+
 	/**
 	 * Attempt to recover mood to always maintain at least Above Normal mood.
 	 *
@@ -1431,17 +1431,17 @@ class Game(val myContext: Context) {
 			false
 		}
 	}
-	
+
 	/**
 	 * Prints the training map object for informational purposes.
 	 */
 	private fun printTrainingMap() {
-		printToLog("\n[INFO] Calculated Stat Weight by Training:")
+		printToLog("\n[INFO] Stat Gains by Training:")
 		trainingMap.forEach { name, training ->
 			printToLog("[TRAINING] $name Training stat gains: ${training.statGains.contentToString()}, failure chance: ${training.failureChance}%, is rainbow training: ${training.isRainbow}.")
 		}
 	}
-	
+
 	/**
 	 * Perform misc checks to potentially fix instances where the bot is stuck.
 	 *
@@ -1482,10 +1482,10 @@ class Game(val myContext: Context) {
 		} else {
 			printToLog("[INFO] Did not detect any popups or the Crane Game on the screen. Moving on...")
 		}
-		
+
 		return true
 	}
-	
+
 	/**
 	 * Bot will begin automation here.
 	 *
@@ -1499,7 +1499,7 @@ class Game(val myContext: Context) {
 
 		// Update the stat targets by distances.
 		setStatTargetsByDistances()
-		
+
 		// If debug mode is off, then it is necessary to wait a few seconds for the Toast message to disappear from the screen to prevent it obstructing anything beneath it.
 		if (!debugMode) {
 			wait(3.0)
@@ -1513,7 +1513,7 @@ class Game(val myContext: Context) {
 		printToLog("[WARNING] ⚠️ Note that certain Android notification styles (like banners) are big enough that they cover the area that contains the Mood which will interfere with mood recovery logic in the beginning.")
 		val packageInfo = myContext.packageManager.getPackageInfo(myContext.packageName, 0)
 		printToLog("[INFO] Bot version: ${packageInfo.versionName} (${packageInfo.versionCode})\n\n")
-		
+
 		val startTime: Long = System.currentTimeMillis()
 
 		// Start debug tests here if enabled.
