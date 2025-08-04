@@ -1310,6 +1310,7 @@ class Game(val myContext: Context) {
 		printToLog("\n[STATS] Updating preferred distance.")
 		if (findAndTapImage("main_status", tries = 1, region = imageUtils.regionMiddle)) {
 			preferredDistance = imageUtils.determinePreferredDistance()
+			findAndTapImage("race_accept_trophy", tries = 1, region = imageUtils.regionBottomHalf)
 			printToLog("[STATS] Preferred distance set to $preferredDistance.")
 		}
 	}
