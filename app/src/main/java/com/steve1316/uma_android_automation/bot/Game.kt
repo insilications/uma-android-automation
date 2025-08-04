@@ -16,7 +16,9 @@ import com.steve1316.uma_android_automation.utils.SettingsPrinter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.opencv.core.Point
+import java.text.DecimalFormat
 import java.util.concurrent.TimeUnit
+import kotlin.math.pow
 
 /**
  * Main driver for bot activity and navigation.
@@ -24,6 +26,7 @@ import java.util.concurrent.TimeUnit
 class Game(val myContext: Context) {
 	private val tag: String = "[${MainActivity.loggerTag}]Game"
 	var notificationMessage: String = ""
+	private val decimalFormat = DecimalFormat("#.##")
 	val imageUtils: ImageUtils = ImageUtils(myContext, this)
 	val gestureUtils: MyAccessibilityService = MyAccessibilityService.getInstance()
 	private val textDetection: TextDetection = TextDetection(this, imageUtils)
@@ -54,8 +57,9 @@ class Game(val myContext: Context) {
 	)
 	private var preferredDistance: String = ""
 	private var firstTrainingCheck = true
-	private var previouslySelectedTraining = ""
-	
+	private val currentStatCap = 1200
+	private val historicalTrainingCounts: MutableMap<String, Int> = mutableMapOf()
+
 	////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////
 	// Racing
@@ -90,6 +94,7 @@ class Game(val myContext: Context) {
 		val name: String,
 		val statGains: IntArray,
 		val failureChance: Int,
+		val relationshipBars: ArrayList<ImageUtils.BarFillResult>,
 		val isRainbow: Boolean
 	) {
         override fun equals(other: Any?): Boolean {
@@ -593,8 +598,8 @@ class Game(val myContext: Context) {
 				findAndTapImage("training_speed", region = imageUtils.regionBottomHalf)
 				wait(0.5)
 			}
-			
-			var failureChance: Int = imageUtils.findTrainingFailureChance()
+
+			val failureChance: Int = imageUtils.findTrainingFailureChance()
 			if (failureChance == -1) {
 				printToLog("[WARNING] Skipping training due to not being able to confirm whether or not the bot is at the Training screen.")
 				return
@@ -602,64 +607,54 @@ class Game(val myContext: Context) {
 
 			if (test || failureChance <= maximumFailureChance) {
 				printToLog("[TRAINING] $failureChance% within acceptable range of ${maximumFailureChance}%. Proceeding to acquire all other percentages and total stat increases...")
-				
-				var initialStatWeight: Int = imageUtils.findInitialStatWeight("Speed")
-				
-				// Save the results to the map if Speed training is not blacklisted.
-				if (!blacklist.contains("Speed")) {
-					trainingMap["Speed"] = mutableMapOf(
-						"failureChance" to failureChance,
-						"statWeight" to initialStatWeight,
-					)
-				}
-				
-				// Get all trainings not blacklisted.
-				val whitelistedTrainings: MutableList<String> = mutableListOf()
-				trainings.forEach { training ->
-					if (!blacklist.contains(training)) {
-						whitelistedTrainings.add(training)
+
+				// Iterate through every training that is not blacklisted.
+				trainings.forEachIndexed { index, training ->
+					if (blacklist.getOrElse(index) { "" } == training) {
+						printToLog("[TRAINING] Skipping $training training due to being blacklisted.")
+						return@forEachIndexed
 					}
-				}
-				
-				// Iterate through every training after Speed training that is not blacklisted.
-				whitelistedTrainings.forEach { training ->
-					if (training != "Speed") {
-						val newY = 319
-						val newX: Double = when (training) {
-							"Stamina" -> {
-								280.0
-							}
-							"Power" -> {
-								402.0
-							}
-							"Guts" -> {
-								591.0
-							}
-							else -> {
-								779.0
-							}
+
+					// Select the Training to make it active except Speed Training since that is already selected at the start.
+					val newX: Double = when (training) {
+						"Stamina" -> {
+							280.0
 						}
-						
+						"Power" -> {
+							402.0
+						}
+						"Guts" -> {
+							591.0
+						}
+						"Wit" -> {
+							779.0
+						}
+						else -> {
+							0.0
+						}
+					}
+
+					if (newX != 0.0) {
 						if (imageUtils.isTablet) {
 							if (training == "Stamina") {
-								tap(speedStatTextLocation.x + imageUtils.relWidth((newX * 1.05).toInt()), speedStatTextLocation.y + imageUtils.relHeight((newY * 1.50).toInt()), "training_option_circular")
+								tap(speedStatTextLocation.x + imageUtils.relWidth((newX * 1.05).toInt()), speedStatTextLocation.y + imageUtils.relHeight((319 * 1.50).toInt()), "training_option_circular")
 							} else {
-								tap(speedStatTextLocation.x + imageUtils.relWidth((newX * 1.36).toInt()), speedStatTextLocation.y + imageUtils.relHeight((newY * 1.50).toInt()), "training_option_circular")
+								tap(speedStatTextLocation.x + imageUtils.relWidth((newX * 1.36).toInt()), speedStatTextLocation.y + imageUtils.relHeight((319 * 1.50).toInt()), "training_option_circular")
 							}
 						} else {
-							tap(speedStatTextLocation.x + imageUtils.relWidth(newX.toInt()), speedStatTextLocation.y + imageUtils.relHeight(newY), "training_option_circular")
+							tap(speedStatTextLocation.x + imageUtils.relWidth(newX.toInt()), speedStatTextLocation.y + imageUtils.relHeight(319), "training_option_circular")
 						}
-						
-						failureChance = imageUtils.findTrainingFailureChance()
-						initialStatWeight = imageUtils.findInitialStatWeight(training)
-						
-						printToLog("[TRAINING] $training can gain ~$initialStatWeight with $failureChance% to fail.")
-						
-						trainingMap[training] = mutableMapOf(
-							"failureChance" to failureChance,
-							"statWeight" to initialStatWeight,
-						)
 					}
+
+					// Update the object in the training map.
+					val newTraining = Training(
+						name = training,
+						statGains = imageUtils.determineStatGainFromTraining(),
+						failureChance = imageUtils.findTrainingFailureChance(),
+						relationshipBars = imageUtils.analyzeRelationshipBars(),
+						isRainbow = imageUtils.findImage("training_rainbow", tries = 1, imageUtils.regionBottomHalf, suppressError = true).first != null
+					)
+					trainingMap.put(training, newTraining)
 				}
 
 				printToLog("[TRAINING] Process to determine stat gains and failure percentages completed.")
@@ -672,41 +667,181 @@ class Game(val myContext: Context) {
 	}
 
 	/**
+	 * Recommends the best training option based on current stats, stat targets, and game phase.
+	 *
+	 * This function evaluates all available training options using a scoring system that considers multiple factors including:
+	 * - Current stat values vs target values for the preferred race distance.
+	 * - Training phase (Junior Year for friendship bar progression versus the other years) and its impact on stat priorities.
+	 * - Rainbow training bonuses.
+	 * - Historical training frequency to avoid over-specialization into one stat for a better distribution.
+	 * - Stat caps and overflow penalties.
+	 * - Blacklisted training options.
+	 *
+	 * @return The name of the recommended training option.
+	 */
+	private fun recommendTraining(): String {
+		/**
+		 * Scores the currently selected training option during Junior Year based on friendship bar progress.
+		 *
+		 * This algorithm prefers training options with the least relationship progress (especially blue bars).
+		 * It ignores stat gains unless all else is equal.
+		 *
+		 * @param training The training option to evaluate.
+		 *
+		 * @return A score representing relationship-building value.
+		 */
+		fun scoreFriendshipTraining(training: Training): Double {
+			// Ignore the blacklist and rainbow bonuses in favor of making sure we build up the relationship bars as fast as possible.
+			printToLog("[TRAINING] Starting process to score ${training.name} Training with a focus on building relationship bars.")
+
+			val barResults = training.relationshipBars
+			if (barResults.isEmpty()) return Double.NEGATIVE_INFINITY
+
+			var score = 0.0
+			for (bar in barResults) {
+				val contribution = when (bar.dominantColor) {
+					"orange" -> 0.0
+					"green" -> 1.0
+					"blue" -> 2.5
+					else -> 0.0
+				}
+				score += contribution
+			}
+
+			printToLog("[TRAINING] ${training.name} Training has a score of ${decimalFormat.format(score)} with a focus on building relationship bars.")
+			return score
+		}
+
+		/**
+		 * Scores a training option based on multiple factors to determine its desirability.
+		 *
+		 * The scoring algorithm evaluates each training option by:
+		 * 1. Checking if it's blacklisted or would exceed stat caps.
+		 * 2. Calculating how much each stat gain contributes to reaching target values.
+		 * 3. Applying year-specific weights to prioritize certain stats.
+		 * 4. Adding bonuses for rainbow training (20% boost).
+		 * 5. Applying diminishing returns to avoid over-specialization.
+		 * 6. Penalizing training that would exceed stat caps.
+		 *
+		 * @param training The training option to evaluate.
+		 *
+		 * @return A score representing the training's desirability. The higher, the better.
+		 */
+		fun scoreStatTraining(training: Training): Double {
+			if (training.name in blacklist) return Double.NEGATIVE_INFINITY
+
+			if (disableTrainingOnMaxedStat && training.statGains.withIndex().any { (i, gain) ->
+					val statName = statPrioritization.getOrNull(i) ?: return@any false
+					currentStatsMap.getOrDefault(statName, 0) + gain >= currentStatCap
+				}) return Double.NEGATIVE_INFINITY
+
+			printToLog("[TRAINING] Starting process to score ${training.name} Training.")
+
+			val trainingStats = training.statGains
+			val target = statTargetsByDistance[preferredDistance] ?: intArrayOf(600, 600, 600, 300, 300)
+
+			var score = 0.0
+
+			// Evaluate each stat based on priority order.
+			for ((_, stat) in trainings.withIndex()) {
+				val statIndex = trainings.indexOf(stat)
+				if (statIndex == -1) continue
+
+				val currentStatValue = currentStatsMap.getOrDefault(stat, 0)
+				val targetStatValue = target.getOrElse(statIndex) { 0 }
+				val statGain = trainingStats.getOrElse(statIndex) { 0 }
+				val remaining = (targetStatValue - currentStatValue).coerceAtLeast(0)
+
+				// Only score positive gains that help reach stat target.
+				if (remaining > 0 && statGain > 0) {
+					val rel = (statGain.toDouble() / remaining).coerceAtMost(1.0)
+
+					// Determine weight only if stat is in the prioritization list.
+					val priorityIndex = statPrioritization.indexOf(stat)
+					val weight = if (priorityIndex != -1) {
+						when (currentDate.year) {
+							1 -> kotlin.math.sqrt((statPrioritization.size - priorityIndex).toDouble() / statPrioritization.size)
+							2 -> (statPrioritization.size - priorityIndex).toDouble() / statPrioritization.size
+							else -> ((statPrioritization.size - priorityIndex).toDouble() / statPrioritization.size).pow(2.0)
+						}
+					} else {
+						1.0 // Use a neutral weight if not prioritized.
+					}
+
+					// Dampen the score when the remaining gets smaller.
+					val dampener = (remaining.toDouble() / targetStatValue).coerceIn(0.1, 1.0)
+
+					printToLog(
+						"[TRAINING] Adding score of ${training.name} Training by ${decimalFormat.format(rel * weight * dampener)} from ${decimalFormat.format(score)} to " +
+								"${decimalFormat.format(score + (rel * weight * dampener))} (weight=${decimalFormat.format(weight)}, statGain=$statGain)."
+					)
+
+					score += rel * weight * dampener
+				}
+
+				// Penalize training that would exceed stat caps.
+				val newStat = currentStatValue + statGain
+				if (newStat > currentStatCap) {
+					val overflow = newStat - currentStatCap
+					val penalized = (overflow.toDouble() / currentStatCap) * 0.5
+
+					printToLog(
+						"[TRAINING] Penalizing score of ${training.name} Training by ${decimalFormat.format(penalized)} from " +
+							"${decimalFormat.format(score)} to ${decimalFormat.format(score - penalized)} due to exceeding stat cap."
+					)
+
+					score -= penalized
+				}
+			}
+
+			// Apply rainbow training bonus (20% score increase).
+			if (training.isRainbow) {
+				printToLog("[TRAINING] Multiplying score of ${training.name} Training by 1.2 from ${decimalFormat.format(score)} to ${decimalFormat.format(score * 1.2)} due to rainbow training.")
+				score *= 1.2
+			}
+
+			// Apply diminishing returns to prevent over-specialization into one stat.
+			val count = historicalTrainingCounts.getOrDefault(training.name, 0)
+
+			printToLog(
+				"[TRAINING] Applying diminishing return to ${training.name} Training by ${decimalFormat.format(1.0 / (1.0 + (0.1 * count)))} from " +
+					"${decimalFormat.format(score)} to ${decimalFormat.format(score * (1.0 / (1.0 + (0.1 * count))))} to prevent over-specialization into one stat."
+			)
+
+			score *= 1.0 / (1.0 + (0.1 * count))
+
+			printToLog("[TRAINING] Final score of ${training.name} Training is ${decimalFormat.format(score)}.")
+
+			return score
+		}
+
+		// Decide which scoring function to use based on the current phase or year.
+		// Junior Year will focus on building relationship bars.
+		val best = if (currentDate.phase == "Pre-Debut" || currentDate.year == 1) {
+			trainingMap.values.maxByOrNull { scoreFriendshipTraining(it) }
+		} else trainingMap.values.maxByOrNull { scoreStatTraining(it) }
+
+		return best?.name ?: trainingMap.keys.firstOrNull { it !in blacklist } ?: ""
+	}
+
+	/**
 	 * Execute the training with the highest stat weight.
 	 */
 	private fun executeTraining() {
 		printToLog("\n[TRAINING] Now starting process to execute training...")
-		var trainingSelected = ""
-		var maxWeight = -1
-		
-		// Grab the training with the maximum weight.
-		trainingMap.forEach { (statName, map) ->
-			// Skip training if the stat is maxed out.
-			if (!disableTrainingOnMaxedStat && statValueMap[statName]!! >= 1200) {
-				printToLog("[TRAINING] Training for $statName will be skipped due to it already being at ${statValueMap[statName]}.")
-				return@forEach
-			}
+		val trainingSelected = recommendTraining()
 
-			val weight = map["statWeight"]!!
-			if (weight > maxWeight) {
-				maxWeight = weight
-				trainingSelected = statName
-				previouslySelectedTraining = statName
-			}
-		}
-		
 		if (trainingSelected != "") {
 			printTrainingMap()
 			printToLog("[TRAINING] Executing the $trainingSelected Training.")
 			findAndTapImage("training_${trainingSelected.lowercase()}", region = imageUtils.regionBottomHalf, taps = 3)
+			printToLog("[TRAINING] Process to execute training completed.")
 		} else {
 			printToLog("[TRAINING] Conditions have not been met so training will not be done.")
 		}
 
 		// Now reset the Training map.
 		trainingMap.clear()
-		
-		printToLog("[TRAINING] Process to execute training completed.")
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
