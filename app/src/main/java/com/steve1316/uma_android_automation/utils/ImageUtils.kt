@@ -1869,7 +1869,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		// Check if template has an alpha channel (transparency).
 		if (templateMat.channels() != 4) {
-			game.printToLog("[ERROR] Template \"$templateName\" is not transparent and is a requirement.", tag = tag, isError = true)
+			Log.e(tag, "[ERROR] Template \"$templateName\" is not transparent and is a requirement.")
 			templateMat.release()
 			templateGray.release()
 			return matchResults
@@ -1889,7 +1889,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		val totalPixels = alphaMask.rows() * alphaMask.cols()
 		val transparencyRatio = nonZeroPixels.toDouble() / totalPixels
 		if (transparencyRatio < 0.1) {
-			game.printToLog("[WARNING] Template \"$templateName\" appears to be mostly transparent!", tag = tag)
+			Log.w(tag, "[DEBUG] Template \"$templateName\" appears to be mostly transparent!")
 			alphaChannels.forEach { it.release() }
 			validPixels.release()
 			alphaMask.release()
@@ -1940,7 +1940,6 @@ class ImageUtils(context: Context, private val game: Game) {
 					val matchingPixels = Core.countNonZero(templateComparison)
 					val pixelMatchRatio = matchingPixels.toDouble() / (w * h)
 					if (pixelMatchRatio < minPixelMatchRatio) {
-						Log.d(tag, "[DEBUG] Match for \"$templateName\" failed pixel ratio test: ${decimalFormat.format(pixelMatchRatio)} < ${decimalFormat.format(minPixelMatchRatio)}.")
 						failedPixelMatchRatio = true
 					}
 
@@ -1957,7 +1956,6 @@ class ImageUtils(context: Context, private val game: Game) {
 					// For the second test, validate the match quality by performing correlation calculation.
 					val pixelCorrelation = calculateCorrelation(templateArray, regionArray)
 					if (pixelCorrelation < minPixelCorrelation) {
-						Log.d(tag, "[DEBUG] Match for \"$templateName\" failed correlation test: ${decimalFormat.format(pixelCorrelation)} < ${decimalFormat.format(minPixelCorrelation)}")
 						failedPixelCorrelation = true
 					}
 
@@ -1984,7 +1982,6 @@ class ImageUtils(context: Context, private val game: Game) {
 					val remainingWidth = searchMat.cols() - cropX
 					when {
 						remainingWidth < templateGray.cols() -> {
-							Log.d(tag, "[DEBUG] Mat size too small for template \"$templateName\". Stopping search.")
 							continueSearching = false
 						}
 						else -> {
@@ -1992,17 +1989,14 @@ class ImageUtils(context: Context, private val game: Game) {
 							searchMat.release()
 							searchMat = newSearchMat
 							xOffset += cropX
-							Log.d(tag, "[DEBUG] Cropped searchMat horizontally. New width: ${searchMat.cols()}, xOffset: $xOffset")
 						}
 					}
 				} else {
 					// Stop searching when the source has been traversed.
-					Log.d(tag, "[DEBUG] Match for \"$templateName\" out of bounds: x=$x, y=$y, w=$w, h=$h, searchMat=${searchMat.cols()}x${searchMat.rows()}")
 					continueSearching = false
 				}
 			} else {
 				// No match found above threshold, stop searching for this template.
-				Log.d(tag, "[DEBUG] No more matches found for template \"$templateName\".")
 				continueSearching = false
 			}
 
@@ -2010,7 +2004,6 @@ class ImageUtils(context: Context, private val game: Game) {
 
 			// Safety check to prevent infinite loops.
 			if ((matchResults[templateName]?.size ?: 0) > 10) {
-				Log.d(tag, "[DEBUG] Too many matches found for template \"$templateName\", stopping search.")
 				continueSearching = false
 			}
 			if (!BotService.isRunning) {
@@ -2053,7 +2046,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		}
 
 		if (allMatches.isEmpty()) {
-			game.printToLog("[WARNING] No matches found to construct integer value.", tag = tag)
+			if (debugMode) game.printToLog("[WARNING] No matches found to construct integer value.", tag = tag)
 			return 0
 		}
 
@@ -2074,7 +2067,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			}
 
 			val result = numericPart.toInt()
-			game.printToLog("[INFO] Successfully constructed integer value: $result from \"$constructedString\"", tag = tag)
+			if (debugMode) game.printToLog("[DEBUG] Successfully constructed integer value: $result from \"$constructedString\".", tag = tag)
 			result
 		} catch (e: NumberFormatException) {
 			game.printToLog("[ERROR] Could not convert \"$constructedString\" to integer: ${e.message}", tag = tag, isError = true)
