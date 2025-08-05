@@ -44,7 +44,13 @@ class Game(val myContext: Context) {
 	// Training
 	private val trainings: List<String> = listOf("Speed", "Stamina", "Power", "Guts", "Wit")
 	private val trainingMap: MutableMap<String, Training> = mutableMapOf()
-	private var currentStatsMap: MutableMap<String, Int> = mutableMapOf()
+	private var currentStatsMap: MutableMap<String, Int> = mutableMapOf(
+		"Speed" to 0,
+		"Stamina" to 0,
+		"Power" to 0,
+		"Guts" to 0,
+		"Wit" to 0
+	)
 	private val blacklist: List<String> = sharedPreferences.getStringSet("trainingBlacklist", setOf())!!.toList()
 	private var statPrioritization: List<String> = sharedPreferences.getString("statPrioritization", "Speed|Stamina|Power|Guts|Wit")!!.split("|")
 	private val enablePrioritizeEnergyOptions: Boolean = sharedPreferences.getBoolean("enablePrioritizeEnergyOptions", false)
