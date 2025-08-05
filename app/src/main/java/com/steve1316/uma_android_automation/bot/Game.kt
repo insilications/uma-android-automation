@@ -56,6 +56,7 @@ class Game(val myContext: Context) {
 	private val enablePrioritizeEnergyOptions: Boolean = sharedPreferences.getBoolean("enablePrioritizeEnergyOptions", false)
 	private val maximumFailureChance: Int = sharedPreferences.getInt("maximumFailureChance", 15)
 	private val disableTrainingOnMaxedStat: Boolean = sharedPreferences.getBoolean("disableTrainingOnMaxedStat", true)
+	private val focusOnSparkStatTarget: Boolean = sharedPreferences.getBoolean("focusOnSparkStatTarget", false)
 	private val statTargetsByDistance: MutableMap<String, IntArray> = mutableMapOf(
 		"Sprint" to intArrayOf(0, 0, 0, 0, 0),
 		"Mile" to intArrayOf(0, 0, 0, 0, 0),
@@ -811,6 +812,7 @@ class Game(val myContext: Context) {
 		 * - The gap between current stats and target stats
 		 * - Priority weights that vary by game year (higher priority in later years)
 		 * - Efficiency bonuses for closing gaps vs diminishing returns for overage
+		 * - Spark stat target focus when enabled (Speed, Stamina, Power to 600+)
 		 *
 		 * @param training The training option to evaluate.
 		 * @param target Array of target stat values for the preferred race distance.
@@ -842,13 +844,27 @@ class Game(val myContext: Context) {
 					}
 
 					// Calculate efficiency based on remaining gap between the current stat and the target.
-					val efficiency = if (remaining > 0) {
+					var efficiency = if (remaining > 0) {
 						// Stat is below target, calculate how much of the gap this closes.
 						2.0 + (statGain.toDouble() / remaining).coerceAtMost(1.0)
 					} else {
 						// Stat is above target, give a diminishing bonus based on how much over.
 						val overageRatio = (statGain.toDouble() / (-remaining + statGain))
 						1.0 + overageRatio
+					}
+
+					// Apply Spark stat target focus when enabled.
+					if (focusOnSparkStatTarget) {
+						val sparkTarget = 600
+						val sparkRemaining = sparkTarget - currentStat
+						
+						// Check if this is a Spark stat (Speed, Stamina, Power) and it's below 600.
+						if ((stat == "Speed" || stat == "Stamina" || stat == "Power") && sparkRemaining > 0) {
+							// Boost efficiency for Spark stats that are below 600.
+							val sparkEfficiency = 2.0 + (statGain.toDouble() / sparkRemaining).coerceAtMost(1.0)
+							// Use the higher of the two efficiencies (original target vs spark target).
+							efficiency = maxOf(efficiency, sparkEfficiency)
+						}
 					}
 
 					score += efficiency * priorityWeight
