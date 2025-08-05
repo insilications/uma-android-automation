@@ -1343,6 +1343,9 @@ class Game(val myContext: Context) {
 			if (enableStopOnMandatoryRace) {
 				detectedMandatoryRaceCheck = true
 				return false
+			} else if (enableForceRacing) {
+				findAndTapImage("ok", tries = 1, region = imageUtils.regionMiddle)
+				wait(1.0)
 			}
 
 			// There is a mandatory race. Now confirm the selection and the resultant popup and then wait for the game to load.
@@ -1378,7 +1381,7 @@ class Game(val myContext: Context) {
 					findAndTapImage("cancel", region = imageUtils.regionBottomHalf)
 					return false
 				} else {
-					findAndTapImage("race_confirm", tries = 1, region = imageUtils.regionMiddle)
+					findAndTapImage("ok", tries = 1, region = imageUtils.regionMiddle)
 					wait(1.0)
 				}
 			}
