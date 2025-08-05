@@ -95,6 +95,14 @@ class SettingsFragment : PreferenceFragmentCompat() {
 						commit()
 					}
 				}
+				"enableForceRacing" -> {
+					val enableForceRacingPreference = findPreference<CheckBoxPreference>("enableForceRacing")!!
+
+					sharedPreferences.edit {
+						putBoolean("enableForceRacing", enableForceRacingPreference.isChecked)
+						commit()
+					}
+				}
 				"debugMode" -> {
 					val debugModePreference = findPreference<CheckBoxPreference>("debugMode")!!
 					
@@ -185,6 +193,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 		val disableRaceRetries: Boolean = sharedPreferences.getBoolean("disableRaceRetries", false)
 		val enableStopOnMandatoryRace: Boolean = sharedPreferences.getBoolean("enableStopOnMandatoryRace", false)
 		val enablePrioritizeEnergyOptions: Boolean = sharedPreferences.getBoolean("enablePrioritizeEnergyOptions", false)
+		val enableForceRacing: Boolean = sharedPreferences.getBoolean("enableForceRacing", false)
 		val debugMode: Boolean = sharedPreferences.getBoolean("debugMode", false)
 		val confidence: Int = sharedPreferences.getInt("confidence", 80)
 		val customScale: Int = sharedPreferences.getInt("customScale", 100)
@@ -203,6 +212,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 		val disableRaceRetriesPreference = findPreference<CheckBoxPreference>("disableRaceRetries")!!
 		val enableStopOnMandatoryRacePreference = findPreference<CheckBoxPreference>("enableStopOnMandatoryRace")!!
 		val enablePrioritizeEnergyOptionsPreference = findPreference<CheckBoxPreference>("enablePrioritizeEnergyOptions")!!
+		val enableForceRacingPreference = findPreference<CheckBoxPreference>("enableForceRacing")!!
 		val debugModePreference = findPreference<CheckBoxPreference>("debugMode")!!
 		val confidencePreference = findPreference<SeekBarPreference>("confidence")!!
 		val customScalePreference = findPreference<SeekBarPreference>("customScale")!!
@@ -225,6 +235,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
 		disableRaceRetriesPreference.isChecked = disableRaceRetries
 		enableStopOnMandatoryRacePreference.isChecked = enableStopOnMandatoryRace
 		enablePrioritizeEnergyOptionsPreference.isChecked = enablePrioritizeEnergyOptions
+		enableForceRacingPreference.isChecked = enableForceRacing
 		debugModePreference.isChecked = debugMode
 		confidencePreference.value = confidence
 		customScalePreference.value = customScale

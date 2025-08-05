@@ -77,6 +77,11 @@
             app:title="Enable Stop on Mandatory Race" />
 
         <CheckBoxPreference
+            app:key="enableForceRacing"
+            app:summary="Forces the bot to race extra races for every single day with no rest, mood recovery, or training. Focuses purely on racing."
+            app:title="Force Racing Every Day" />
+
+        <CheckBoxPreference
             app:key="enablePrioritizeEnergyOptions"
             app:summary="Overrides all stat weight prioritization settings and have the bot pick options that give the highest Energy. Will fallback to the current stat weight prioritization settings if no option for that is available."
             app:title="Prioritize Energy Above All Else" />

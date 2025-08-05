@@ -28,6 +28,7 @@ object SettingsPrinter {
 		val enablePopupCheck: Boolean = sharedPreferences.getBoolean("enablePopupCheck", false)
 		val disableRaceRetries: Boolean = sharedPreferences.getBoolean("disableRaceRetries", false)
 		val enableStopOnMandatoryRace: Boolean = sharedPreferences.getBoolean("enableStopOnMandatoryRace", false)
+		val enableForceRacing: Boolean = sharedPreferences.getBoolean("enableForceRacing", false)
 		val enablePrioritizeEnergyOptions: Boolean = sharedPreferences.getBoolean("enablePrioritizeEnergyOptions", false)
 		
 		// Training Settings
@@ -173,6 +174,7 @@ object SettingsPrinter {
 			appendLine("Popup Check: ${if (enablePopupCheck) "✅" else "❌"}")
 			appendLine("Disable Race Retries: ${if (disableRaceRetries) "✅" else "❌"}")
 			appendLine("Stop on Mandatory Race: ${if (enableStopOnMandatoryRace) "✅" else "❌"}")
+			appendLine("Force Racing Every Day: ${if (enableForceRacing) "✅" else "❌"}")
 			appendLine("Prioritize Energy Options: ${if (enablePrioritizeEnergyOptions) "✅" else "❌"}")
 			appendLine()
 			appendLine("---------- Debug Options ----------")
