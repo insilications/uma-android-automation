@@ -747,17 +747,29 @@ class Game(val myContext: Context) {
 	}
 
 	/**
-	 * Recommends the best training option based on current stats, stat targets, and game phase.
+	 * Recommends the best training option based on current game state and strategic priorities.
 	 *
-	 * This function evaluates all available training options using a scoring system that considers multiple factors including:
-	 * - Current stat values vs target values for the preferred race distance.
-	 * - Training phase (Junior Year for friendship bar progression versus the other years) and its impact on stat priorities.
-	 * - Rainbow training bonuses.
-	 * - Historical training frequency to avoid over-specialization into one stat for a better distribution.
-	 * - Stat caps and overflow penalties.
-	 * - Blacklisted training options.
+	 * This function implements a sophisticated training recommendation system that adapts to different
+	 * phases of the game. It uses different scoring algorithms depending on the current game year:
 	 *
-	 * @return The name of the recommended training option.
+	 * **Early Game (Pre-Debut/Year 1):**
+	 * - Focuses on relationship building using `scoreFriendshipTraining()`
+	 * - Prioritizes training options that build friendship bars, especially blue bars
+	 * - Ignores stat gains in favor of relationship development
+	 *
+	 * **Mid/Late Game (Year 2+):**
+	 * - Uses comprehensive scoring via `scoreStatTrainingEnhanced()`
+	 * - Combines stat efficiency (60-70%), relationship building (10%), and context bonuses (30%)
+	 * - Adapts weighting based on whether relationship bars are present
+	 *
+	 * The scoring system considers multiple factors:
+	 * - **Stat Efficiency:** How well training helps achieve target stats for the preferred race distance
+	 * - **Relationship Building:** Value of friendship bar progress with diminishing returns
+	 * - **Context Bonuses:** Rainbow training bonuses, phase-specific bonuses, and stat gain thresholds
+	 * - **Blacklist Compliance:** Excludes blacklisted training options
+	 * - **Stat Cap Respect:** Avoids training that would exceed stat caps when enabled
+	 *
+	 * @return The name of the recommended training option, or empty string if no suitable option found.
 	 */
 	private fun recommendTraining(): String {
 		/**
@@ -772,7 +784,7 @@ class Game(val myContext: Context) {
 		 */
 		fun scoreFriendshipTraining(training: Training): Double {
 			// Ignore the blacklist and rainbow bonuses in favor of making sure we build up the relationship bars as fast as possible.
-			printToLog("[TRAINING] Starting process to score ${training.name} Training with a focus on building relationship bars.")
+			printToLog("\n[TRAINING] Starting process to score ${training.name} Training with a focus on building relationship bars.")
 
 			val barResults = training.relationshipBars
 			if (barResults.isEmpty()) return Double.NEGATIVE_INFINITY
@@ -793,106 +805,213 @@ class Game(val myContext: Context) {
 		}
 
 		/**
-		 * Scores a training option based on multiple factors to determine its desirability.
+		 * Calculates the efficiency score for stat gains based on target achievement and priority weights.
 		 *
-		 * The scoring algorithm evaluates each training option by:
-		 * 1. Checking if it's blacklisted or would exceed stat caps.
-		 * 2. Calculating how much each stat gain contributes to reaching target values.
-		 * 3. Applying year-specific weights to prioritize certain stats.
-		 * 4. Adding bonuses for rainbow training (20% boost).
-		 * 5. Applying diminishing returns to avoid over-specialization.
-		 * 6. Penalizing training that would exceed stat caps.
+		 * This function evaluates how well a training option helps achieve stat targets by considering:
+		 * - The gap between current stats and target stats
+		 * - Priority weights that vary by game year (higher priority in later years)
+		 * - Efficiency bonuses for closing gaps vs diminishing returns for overage
+		 *
+		 * @param training The training option to evaluate.
+		 * @param target Array of target stat values for the preferred race distance.
+		 *
+		 * @return A normalized score (0-100) representing stat efficiency.
+		 */
+		fun calculateStatEfficiencyScore(training: Training, target: IntArray): Double {
+			var score = 0.0
+			var maxScore = 0.0
+
+			for ((index, stat) in trainings.withIndex()) {
+				val currentStat = currentStatsMap.getOrDefault(stat, 0)
+				val targetStat = target.getOrElse(index) { 0 }
+				val statGain = training.statGains.getOrElse(index) { 0 }
+				val remaining = targetStat - currentStat
+
+				if (statGain > 0) {
+					// Priority weight based on the current state of the game.
+					val priorityIndex = statPrioritization.indexOf(stat)
+					val priorityWeight = if (priorityIndex != -1) {
+						when {
+							currentDate.year == 1 || currentDate.phase == "Pre-Debut" -> 1.0 + (0.1 * (statPrioritization.size - priorityIndex)) / statPrioritization.size
+							currentDate.year == 2 -> 1.0 + (0.3 * (statPrioritization.size - priorityIndex)) / statPrioritization.size
+							currentDate.year == 3 -> 1.0 + (0.5 * (statPrioritization.size - priorityIndex)) / statPrioritization.size
+							else -> 1.0
+						}
+					} else {
+						0.5 // Lower weight for non-prioritized stats.
+					}
+
+					// Calculate efficiency based on remaining gap between the current stat and the target.
+					val efficiency = if (remaining > 0) {
+						// Stat is below target, calculate how much of the gap this closes.
+						2.0 + (statGain.toDouble() / remaining).coerceAtMost(1.0)
+					} else {
+						// Stat is above target, give a diminishing bonus based on how much over.
+						val overageRatio = (statGain.toDouble() / (-remaining + statGain))
+						1.0 + overageRatio
+					}
+
+					score += efficiency * priorityWeight
+					maxScore += 1.0
+				}
+			}
+
+			return if (maxScore > 0) (score / maxScore * 100.0) else 0.0
+		}
+
+		/**
+		 * Calculates relationship building score with diminishing returns.
+		 *
+		 * Evaluates the value of relationship bars based on their color and fill level:
+		 * - Blue bars: 2.5 points (highest priority)
+		 * - Green bars: 1.0 points (medium priority)  
+		 * - Orange bars: 0.0 points (no value)
+		 *
+		 * Applies diminishing returns as bars fill up and early game bonuses for relationship building.
 		 *
 		 * @param training The training option to evaluate.
 		 *
-		 * @return A score representing the training's desirability. The higher, the better.
+		 * @return A normalized score (0-100) representing relationship building value.
+		 */
+		fun calculateRelationshipScore(training: Training): Double {
+			if (training.relationshipBars.isEmpty()) return 0.0
+
+			var score = 0.0
+			var maxScore = 0.0
+
+			for (bar in training.relationshipBars) {
+				val baseValue = when (bar.dominantColor) {
+					"orange" -> 0.0
+					"green" -> 1.0
+					"blue" -> 2.5
+					else -> 0.0
+				}
+
+				if (baseValue > 0) {
+					// Apply diminishing returns for relationship building.
+					val fillLevel = bar.fillPercent / 100.0
+					val diminishingFactor = 1.0 - (fillLevel * 0.5) // Less valuable as bars fill up.
+
+					// Early game bonus for relationship building.
+					val earlyGameBonus = if (currentDate.year == 1 || currentDate.phase == "Pre-Debut") 1.3 else 1.0
+
+					val contribution = baseValue * diminishingFactor * earlyGameBonus
+					score += contribution
+					maxScore += 2.5 * 1.3
+				}
+			}
+
+			return if (maxScore > 0) (score / maxScore * 100.0) else 0.0
+		}
+
+		/**
+		 * Calculates context-aware bonuses and penalties based on game phase and training properties.
+		 *
+		 * Applies various bonuses including:
+		 * - Rainbow training bonus (2x multiplier)
+		 * - Phase-specific bonuses (relationship focus in early game, stat efficiency in later years)
+		 * - Stat gain thresholds that provide additional bonuses
+		 *
+		 * @param training The training option to evaluate.
+		 *
+		 * @return A context score between 0-200 representing situational bonuses.
+		 */
+		fun calculateContextScore(training: Training): Double {
+			// Start with neutral score.
+			var score = 50.0
+
+			// Bonus for rainbow training.
+			if (training.isRainbow) {
+				score *= 2
+			}
+
+			// Bonuses for each game phase.
+			when {
+				currentDate.year == 1 || currentDate.phase == "Pre-Debut" -> {
+					// Prefer relationship building and balanced stat gains.
+					if (training.relationshipBars.isNotEmpty()) score += 10.0
+					if (training.statGains.sum() > 15) score += 5.0
+				}
+				currentDate.year == 2 -> {
+					// Focus on stat efficiency.
+					score += 10.0
+					if (training.statGains.sum() > 20) score += 10.0
+				}
+				currentDate.year == 3 -> {
+					// Prioritize target achievement
+					score += 15.0
+					if (training.statGains.sum() > 40) score += 30.0
+				}
+			}
+
+			return score.coerceIn(0.0, 200.0)
+		}
+
+		/**
+		 * Performs comprehensive scoring of training options using multiple weighted factors.
+		 *
+		 * This scoring system combines three main components:
+		 * - Stat efficiency (60-70% weight): How well the training helps achieve stat targets
+		 * - Relationship building (10% weight): Value of friendship bar progress
+		 * - Context bonuses (30% weight): Rainbow bonuses, phase-specific bonuses, etc.
+		 *
+		 * The weighting changes based on whether relationship bars are present:
+		 * - With relationship bars: 60% stat, 10% relationship, 30% context
+		 * - Without relationship bars: 70% stat, 0% relationship, 30% context
+		 *
+		 * @param training The training option to evaluate.
+		 *
+		 * @return A normalized score (1-1000) representing overall training value.
 		 */
 		fun scoreStatTraining(training: Training): Double {
-			if (training.name in blacklist) return Double.NEGATIVE_INFINITY
+			if (training.name in blacklist) return 0.0
 
 			if (disableTrainingOnMaxedStat && training.statGains.withIndex().any { (i, gain) ->
 					val statName = statPrioritization.getOrNull(i) ?: return@any false
 					currentStatsMap.getOrDefault(statName, 0) + gain >= currentStatCap
-				}) return Double.NEGATIVE_INFINITY
+				}) return 0.0
 
-			printToLog("[TRAINING] Starting process to score ${training.name} Training.")
+			printToLog("\n[TRAINING] Starting scoring for ${training.name} Training.")
 
-			val trainingStats = training.statGains
 			val target = statTargetsByDistance[preferredDistance] ?: intArrayOf(600, 600, 600, 300, 300)
 
-			var score = 0.0
+			var totalScore = 0.0
+			var maxPossibleScore = 0.0
 
-			// Evaluate each stat based on priority order.
-			for ((_, stat) in trainings.withIndex()) {
-				val statIndex = trainings.indexOf(stat)
-				if (statIndex == -1) continue
+			// 1. Stat Efficiency scoring
+			val statScore = calculateStatEfficiencyScore(training, target)
 
-				val currentStatValue = currentStatsMap.getOrDefault(stat, 0)
-				val targetStatValue = target.getOrElse(statIndex) { 0 }
-				val statGain = trainingStats.getOrElse(statIndex) { 0 }
-				val remaining = (targetStatValue - currentStatValue).coerceAtLeast(0)
+			// 2. Friendship scoring
+			val relationshipScore = calculateRelationshipScore(training)
 
-				// Only score positive gains that help reach stat target.
-				if (remaining > 0 && statGain > 0) {
-					val rel = (statGain.toDouble() / remaining).coerceAtMost(1.0)
+			// 3. Context-aware scoring
+			val contextScore = calculateContextScore(training)
 
-					// Determine weight only if stat is in the prioritization list.
-					val priorityIndex = statPrioritization.indexOf(stat)
-					val weight = if (priorityIndex != -1) {
-						when (currentDate.year) {
-							1 -> kotlin.math.sqrt((statPrioritization.size - priorityIndex).toDouble() / statPrioritization.size)
-							2 -> (statPrioritization.size - priorityIndex).toDouble() / statPrioritization.size
-							else -> ((statPrioritization.size - priorityIndex).toDouble() / statPrioritization.size).pow(2.0)
-						}
-					} else {
-						1.0 // Use a neutral weight if not prioritized.
-					}
+			if (training.relationshipBars.isNotEmpty()) {
+				totalScore += statScore * 0.6
+				maxPossibleScore += 100.0 * 0.6
 
-					// Dampen the score when the remaining gets smaller.
-					val dampener = (remaining.toDouble() / targetStatValue).coerceIn(0.1, 1.0)
+				totalScore += relationshipScore * 0.1
+				maxPossibleScore += 100.0 * 0.1
 
-					printToLog(
-						"[TRAINING] Adding score of ${training.name} Training by ${decimalFormat.format(rel * weight * dampener)} from ${decimalFormat.format(score)} to " +
-								"${decimalFormat.format(score + (rel * weight * dampener))} (weight=${decimalFormat.format(weight)}, statGain=$statGain)."
-					)
+				totalScore += contextScore * 0.3
+				maxPossibleScore += 100.0 * 0.3
+			} else {
+				totalScore += statScore * 0.7
+				maxPossibleScore += 100.0 * 0.7
 
-					score += rel * weight * dampener
-				}
-
-				// Penalize training that would exceed stat caps.
-				val newStat = currentStatValue + statGain
-				if (newStat > currentStatCap) {
-					val overflow = newStat - currentStatCap
-					val penalized = (overflow.toDouble() / currentStatCap) * 0.5
-
-					printToLog(
-						"[TRAINING] Penalizing score of ${training.name} Training by ${decimalFormat.format(penalized)} from " +
-								"${decimalFormat.format(score)} to ${decimalFormat.format(score - penalized)} due to exceeding stat cap."
-					)
-
-					score -= penalized
-				}
+				totalScore += contextScore * 0.3
+				maxPossibleScore += 100.0 * 0.3
 			}
 
-			// Apply rainbow training bonus (20% score increase).
-			if (training.isRainbow) {
-				printToLog("[TRAINING] Multiplying score of ${training.name} Training by 1.2 from ${decimalFormat.format(score)} to ${decimalFormat.format(score * 1.2)} due to rainbow training.")
-				score *= 1.2
-			}
+			printToLog("[TRAINING] Scores | Stat Efficiency: ${decimalFormat.format(statScore)}, Relationship: ${decimalFormat.format(relationshipScore)}, Context: ${decimalFormat.format(contextScore)}")
 
-			// Apply diminishing returns to prevent over-specialization into one stat.
-			val count = historicalTrainingCounts.getOrDefault(training.name, 0)
+			// Normalize the score.
+			val normalizedScore = (totalScore / maxPossibleScore * 100.0).coerceIn(1.0, 1000.0)
 
-			printToLog(
-				"[TRAINING] Applying diminishing return to ${training.name} Training by ${decimalFormat.format(1.0 / (1.0 + (0.1 * count)))} from " +
-						"${decimalFormat.format(score)} to ${decimalFormat.format(score * (1.0 / (1.0 + (0.1 * count))))} to prevent over-specialization into one stat."
-			)
+			printToLog("[TRAINING] Enhanced final score for ${training.name} Training: ${decimalFormat.format(normalizedScore)}/1000.0")
 
-			score *= 1.0 / (1.0 + (0.1 * count))
-
-			printToLog("[TRAINING] Final score of ${training.name} Training is ${decimalFormat.format(score)}.")
-
-			return score
+			return normalizedScore
 		}
 
 		// Decide which scoring function to use based on the current phase or year.
@@ -901,14 +1020,20 @@ class Game(val myContext: Context) {
 			trainingMap.values.maxByOrNull { scoreFriendshipTraining(it) }
 		} else trainingMap.values.maxByOrNull { scoreStatTraining(it) }
 
-		return best?.name ?: trainingMap.keys.firstOrNull { it !in blacklist } ?: ""
+		return if (best != null) {
+			historicalTrainingCounts.put(best.name, historicalTrainingCounts.getOrDefault(best.name, 0) + 1)
+			best.name
+		} else {
+			trainingMap.keys.firstOrNull { it !in blacklist } ?: ""
+		}
 	}
 
 	/**
 	 * Execute the training with the highest stat weight.
 	 */
 	private fun executeTraining() {
-		printToLog("\n[TRAINING] Now starting process to execute training...")
+		printToLog("\n********************")
+		printToLog("[TRAINING] Now starting process to execute training...")
 		val trainingSelected = recommendTraining()
 
 		if (trainingSelected != "") {
@@ -919,6 +1044,8 @@ class Game(val myContext: Context) {
 		} else {
 			printToLog("[TRAINING] Conditions have not been met so training will not be done.")
 		}
+
+		printToLog("********************\n")
 
 		// Now reset the Training map.
 		trainingMap.clear()
