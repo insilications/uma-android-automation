@@ -74,6 +74,7 @@ class Game(val myContext: Context) {
 	private val enableFarmingFans = sharedPreferences.getBoolean("enableFarmingFans", false)
 	private val daysToRunExtraRaces: Int = sharedPreferences.getInt("daysToRunExtraRaces", 4)
 	private val disableRaceRetries: Boolean = sharedPreferences.getBoolean("disableRaceRetries", false)
+	val enableForceRacing = sharedPreferences.getBoolean("enableForceRacing", false)
 	private var raceRetries = 3
 	private var raceRepeatWarningCheck = false
 	var encounteredRacingPopup = false
@@ -477,6 +478,9 @@ class Game(val myContext: Context) {
 	fun checkExtraRaceAvailability(): Boolean {
 		val dayNumber = imageUtils.determineDayForExtraRace()
 		printToLog("\n[INFO] Current remaining number of days before the next mandatory race: $dayNumber.")
+
+		// If the setting to force racing extra races is enabled, always return true (except during Summer).
+		if (enableForceRacing) return imageUtils.findImage("recover_energy_summer", tries = 1, region = imageUtils.regionBottomHalf).first == null
 
 		return enableFarmingFans && dayNumber % daysToRunExtraRaces == 0 && !raceRepeatWarningCheck &&
 				imageUtils.findImage("race_select_extra_locked_uma_finals", tries = 1, region = imageUtils.regionBottomHalf).first == null &&
@@ -1368,10 +1372,15 @@ class Game(val myContext: Context) {
 
 			// If there is a popup warning about repeating races 3+ times, stop the process and do something else other than racing.
 			if (imageUtils.findImage("race_repeat_warning").first != null) {
-				raceRepeatWarningCheck = true
-				printToLog("\n[RACE] Closing popup warning of doing more than 3+ races and setting flag to prevent racing for now. Canceling the racing process and doing something else.")
-				findAndTapImage("cancel", region = imageUtils.regionBottomHalf)
-				return false
+				if (!enableForceRacing) {
+					raceRepeatWarningCheck = true
+					printToLog("\n[RACE] Closing popup warning of doing more than 3+ races and setting flag to prevent racing for now. Canceling the racing process and doing something else.")
+					findAndTapImage("cancel", region = imageUtils.regionBottomHalf)
+					return false
+				} else {
+					findAndTapImage("race_confirm", tries = 1, region = imageUtils.regionMiddle)
+					wait(1.0)
+				}
 			}
 
 			// There is a extra race.
@@ -1407,7 +1416,7 @@ class Game(val myContext: Context) {
 				extraRaceLocation.add(selectedExtraRace)
 
 				// Determine its fan gain and save it.
-				val fans = imageUtils.determineExtraRaceFans(extraRaceLocation[count], sourceBitmap, templateBitmap!!)
+				val fans = imageUtils.determineExtraRaceFans(extraRaceLocation[count], sourceBitmap, templateBitmap!!, forceRacing = enableForceRacing)
 				if (count == 0 && fans == -1) {
 					// If the fans were unable to be fetched or the race does not have double predictions for the first attempt, skip racing altogether.
 					listOfFans.add(fans)

@@ -51,21 +51,27 @@ open class Campaign(val game: Game) {
 						break
 					}
 
-					// If the bot detected a injury, then rest.
-					if (game.checkInjury()) {
-						game.printToLog("[INFO] A infirmary visit was attempted in order to heal an injury.", tag = tag)
-						game.findAndTapImage("ok", region = game.imageUtils.regionMiddle)
-						game.wait(3.0)
-						game.skipRacing = false
-					} else if (game.recoverMood()) {
-						game.printToLog("[INFO] Mood has recovered.", tag = tag)
-						game.skipRacing = false
-					} else if (!game.checkExtraRaceAvailability()) {
-						game.printToLog("[INFO] Training due to it not being an extra race day.", tag = tag)
-						game.handleTraining()
-						game.skipRacing = false
-					} else {
+					// If force racing is enabled, skip all other activities and go straight to racing
+					if (game.enableForceRacing) {
+						game.printToLog("[INFO] Force racing enabled - skipping all other activities and going straight to racing.", tag = tag)
 						needToRace = true
+					} else {
+						// If the bot detected a injury, then rest.
+						if (game.checkInjury()) {
+							game.printToLog("[INFO] A infirmary visit was attempted in order to heal an injury.", tag = tag)
+							game.findAndTapImage("ok", region = game.imageUtils.regionMiddle)
+							game.wait(3.0)
+							game.skipRacing = false
+						} else if (game.recoverMood()) {
+							game.printToLog("[INFO] Mood has recovered.", tag = tag)
+							game.skipRacing = false
+						} else if (!game.checkExtraRaceAvailability()) {
+							game.printToLog("[INFO] Training due to it not being an extra race day.", tag = tag)
+							game.handleTraining()
+							game.skipRacing = false
+						} else {
+							needToRace = true
+						}
 					}
 				}
 
