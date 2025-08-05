@@ -1367,7 +1367,7 @@ class Game(val myContext: Context) {
 
 			printToLog("[RACE] Racing process for Mandatory Race is completed.")
 			return true
-		} else if (findAndTapImage("race_select_extra", tries = 1, region = imageUtils.regionBottomHalf)) {
+		} else if (currentDate.phase != "Pre-Debut" && findAndTapImage("race_select_extra", tries = 1, region = imageUtils.regionBottomHalf)) {
 			printToLog("\n[RACE] Starting process for handling a extra race.")
 
 			// If there is a popup warning about repeating races 3+ times, stop the process and do something else other than racing.
