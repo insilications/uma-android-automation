@@ -1408,6 +1408,7 @@ class Game(val myContext: Context) {
 			val listOfFans = mutableListOf<Int>()
 			val extraRaceLocation = mutableListOf<Point>()
 			val (sourceBitmap, templateBitmap) = imageUtils.getBitmaps("race_extra_double_prediction")
+			val listOfRaces: ArrayList<ImageUtils.RaceDetails> = arrayListOf()
 			while (count < maxCount) {
 				// Save the location of the selected extra race.
 				val selectedExtraRace = imageUtils.findImage("race_extra_selection", region = imageUtils.regionBottomHalf).first
@@ -1418,13 +1419,14 @@ class Game(val myContext: Context) {
 				extraRaceLocation.add(selectedExtraRace)
 
 				// Determine its fan gain and save it.
-				val fans = imageUtils.determineExtraRaceFans(extraRaceLocation[count], sourceBitmap, templateBitmap!!, forceRacing = enableForceRacing)
-				if (count == 0 && fans == -1) {
+				val raceDetails: ImageUtils.RaceDetails = imageUtils.determineExtraRaceFans(extraRaceLocation[count], sourceBitmap, templateBitmap!!, forceRacing = enableForceRacing)
+				listOfRaces.add(raceDetails)
+				if (count == 0 && raceDetails.fans == -1) {
 					// If the fans were unable to be fetched or the race does not have double predictions for the first attempt, skip racing altogether.
-					listOfFans.add(fans)
+					listOfFans.add(raceDetails.fans)
 					break
 				}
-				listOfFans.add(fans)
+				listOfFans.add(raceDetails.fans)
 
 				// Select the next extra race.
 				if (count + 1 < maxCount) {
@@ -1440,7 +1442,7 @@ class Game(val myContext: Context) {
 				count++
 			}
 
-			val fansList = listOfFans.joinToString(", ") { it.toString() }
+			val fansList = listOfRaces.joinToString(", ") { it.fans.toString() }
 			printToLog("[RACE] Number of fans detected for each extra race are: $fansList")
 
 			// Next determine the maximum fans and select the extra race.
@@ -1451,8 +1453,21 @@ class Game(val myContext: Context) {
 					return false
 				}
 
-				// Get the index of the maximum fans.
-				val index = listOfFans.indexOf(maxFans)
+				// Get the index of the maximum fans or the one with the double predictions if available when force racing is enabled.
+				val index = if (!enableForceRacing) {
+					listOfFans.indexOf(maxFans)
+				} else {
+					// When force racing is enabled, prioritize races with double predictions.
+					val doublePredictionIndex = listOfRaces.indexOfFirst { it.hasDoublePredictions }
+					if (doublePredictionIndex != -1) {
+						printToLog("[RACE] Force racing enabled - selecting race with double predictions.")
+						doublePredictionIndex
+					} else {
+						// Fall back to the race with maximum fans if no double predictions found
+						printToLog("[RACE] Force racing enabled but no double predictions found - falling back to race with maximum fans.")
+						listOfFans.indexOf(maxFans)
+					}
+				}
 
 				printToLog("[RACE] Selecting the extra race at option #${index + 1}.")
 
