@@ -19,7 +19,6 @@ import org.opencv.core.Point
 import java.text.DecimalFormat
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
-import kotlin.math.pow
 
 /**
  * Main driver for bot activity and navigation.
@@ -479,8 +478,8 @@ class Game(val myContext: Context) {
 		val dayNumber = imageUtils.determineDayForExtraRace()
 		printToLog("\n[INFO] Current remaining number of days before the next mandatory race: $dayNumber.")
 
-		// If the setting to force racing extra races is enabled, always return true (except during Summer).
-		if (enableForceRacing) return imageUtils.findImage("recover_energy_summer", tries = 1, region = imageUtils.regionBottomHalf).first == null
+		// If the setting to force racing extra races is enabled, always return true.
+		if (enableForceRacing) return true
 
 		return enableFarmingFans && dayNumber % daysToRunExtraRaces == 0 && !raceRepeatWarningCheck &&
 				imageUtils.findImage("race_select_extra_locked_uma_finals", tries = 1, region = imageUtils.regionBottomHalf).first == null &&

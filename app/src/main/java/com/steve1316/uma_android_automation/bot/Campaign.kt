@@ -53,7 +53,7 @@ open class Campaign(val game: Game) {
 
 					// If force racing is enabled, skip all other activities and go straight to racing
 					if (game.enableForceRacing) {
-						game.printToLog("[INFO] Force racing enabled - skipping all other activities and going straight to racing.", tag = tag)
+						game.printToLog("\n[INFO] Force racing enabled - skipping all other activities and going straight to racing.", tag = tag)
 						needToRace = true
 					} else {
 						// If the bot detected a injury, then rest.
@@ -77,7 +77,7 @@ open class Campaign(val game: Game) {
 
 				 if (game.encounteredRacingPopup || needToRace) {
 					game.printToLog("[INFO] Racing by default.", tag = tag)
-					if (!game.skipRacing && !handleRaceEvents()) {
+					if ((!game.skipRacing && !handleRaceEvents()) || game.enableForceRacing) {
 						if (game.detectedMandatoryRaceCheck) {
 							game.printToLog("\n[END] Stopping bot due to detection of Mandatory Race.", tag = tag)
 							game.notificationMessage = "Stopping bot due to detection of Mandatory Race."
