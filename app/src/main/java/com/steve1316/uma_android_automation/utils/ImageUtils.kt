@@ -124,6 +124,11 @@ class ImageUtils(context: Context, private val game: Game) {
 		game.printToLog("[INFO] Training file loaded.\n", tag = tag)
 	}
 
+	data class RaceDetails (
+		val fans: Int,
+		val hasDoublePredictions: Boolean
+	)
+
 	data class ScaleConfidenceResult(
 		val scale: Double,
 		val confidence: Double
@@ -1179,9 +1184,9 @@ class ImageUtils(context: Context, private val game: Game) {
 	 * @param sourceBitmap Bitmap of the source screenshot.
 	 * @param doubleStarPredictionBitmap Bitmap of the double star prediction template image.
 	 * @param forceRacing Flag to allow the extra race to forcibly pass double star prediction check. Defaults to false.
-	 * @return Number of fans to be gained from the extra race or -1 if not found.
+	 * @return Number of fans to be gained from the extra race or -1 if not found as an object.
 	 */
-	fun determineExtraRaceFans(extraRaceLocation: Point, sourceBitmap: Bitmap, doubleStarPredictionBitmap: Bitmap, forceRacing: Boolean = false): Int {
+	fun determineExtraRaceFans(extraRaceLocation: Point, sourceBitmap: Bitmap, doubleStarPredictionBitmap: Bitmap, forceRacing: Boolean = false): RaceDetails {
 		// Crop the source screenshot to show only the fan amount and the predictions.
 		val croppedBitmap = if (isTablet) {
 			Bitmap.createBitmap(sourceBitmap, relX(extraRaceLocation.x, -(173 * 1.34).toInt()), relY(extraRaceLocation.y, -(106 * 1.34).toInt()), relWidth(220), relHeight(125))
@@ -1193,11 +1198,9 @@ class ImageUtils(context: Context, private val game: Game) {
 		if (debugMode) Imgcodecs.imwrite("$matchFilePath/debugExtraRacePrediction.png", cvImage)
 
 		// Determine if the extra race has double star prediction.
-		val predictionCheck = if (!forceRacing) {
-			match(croppedBitmap, doubleStarPredictionBitmap, "race_extra_double_prediction")
-		} else true
+		val predictionCheck = match(croppedBitmap, doubleStarPredictionBitmap, "race_extra_double_prediction")
 
-		return if (predictionCheck) {
+		return if (forceRacing || predictionCheck) {
 			if (debugMode && !forceRacing) game.printToLog("[DEBUG] This race has double predictions. Now checking how many fans this race gives.", tag = tag)
 			else if (debugMode) game.printToLog("[DEBUG] Check for double predictions was skipped due to the force racing flag being enabled. Now checking how many fans this race gives.", tag = tag)
 
@@ -1259,13 +1262,13 @@ class ImageUtils(context: Context, private val game: Game) {
 			try {
 				Log.d(tag, "Converting $result to integer for fans")
 				val cleanedResult = result.replace(Regex("[^0-9]"), "")
-				cleanedResult.toInt()
+				RaceDetails(cleanedResult.toInt(), predictionCheck)
 			} catch (_: NumberFormatException) {
-				-1
+				RaceDetails(-1, predictionCheck)
 			}
 		} else {
 			Log.d(tag, "This race has no double prediction.")
-			return -1
+			return RaceDetails(-1, false)
 		}
 	}
 
