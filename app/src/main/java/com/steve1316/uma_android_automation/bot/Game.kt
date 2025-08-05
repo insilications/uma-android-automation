@@ -1254,7 +1254,7 @@ class Game(val myContext: Context) {
 			val listOfFans = mutableListOf<Int>()
 			val extraRaceLocation = mutableListOf<Point>()
 			val (sourceBitmap, templateBitmap) = imageUtils.getBitmaps("race_extra_double_prediction")
-			while (count < maxCount - 1) {
+			while (count < maxCount) {
 				// Save the location of the selected extra race.
 				val selectedExtraRace = imageUtils.findImage("race_extra_selection", region = imageUtils.regionBottomHalf).first
 				if (selectedExtraRace == null) {
@@ -1273,10 +1273,12 @@ class Game(val myContext: Context) {
 				listOfFans.add(fans)
 
 				// Select the next extra race.
-				if (imageUtils.isTablet) {
-					tap(extraRaceLocation[count].x - imageUtils.relWidth((100 * 1.36).toInt()), extraRaceLocation[count].y + imageUtils.relHeight((150 * 1.50).toInt()), "race_extra_selection")
-				} else {
-					tap(extraRaceLocation[count].x - imageUtils.relWidth(100), extraRaceLocation[count].y + imageUtils.relHeight(150), "race_extra_selection")
+				if (count + 1 < maxCount) {
+					if (imageUtils.isTablet) {
+						tap(imageUtils.relX(extraRaceLocation[count].x, (-100 * 1.36).toInt()).toDouble(), imageUtils.relY(extraRaceLocation[count].y, (150 * 1.50).toInt()).toDouble(), "race_extra_selection")
+					} else {
+						tap(imageUtils.relX(extraRaceLocation[count].x, -100).toDouble(), imageUtils.relY(extraRaceLocation[count].y, 150).toDouble(), "race_extra_selection")
+					}
 				}
 
 				wait(0.5)
