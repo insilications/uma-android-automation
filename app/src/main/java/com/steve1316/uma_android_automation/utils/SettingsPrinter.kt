@@ -173,6 +173,7 @@ object SettingsPrinter {
 			appendLine("Disable Race Retries: ${if (disableRaceRetries) "✅" else "❌"}")
 			appendLine("Stop on Mandatory Race: ${if (enableStopOnMandatoryRace) "✅" else "❌"}")
 			appendLine("Force Racing Every Day: ${if (enableForceRacing) "✅" else "❌"}")
+			appendLine()
 			appendLine("---------- Misc Options ----------")
 			appendLine("Skill Point Check: ${if (enableSkillPointCheck) "✅ Stop on $skillPointCheck Skill Points or more" else "❌"}")
 			appendLine("Popup Check: ${if (enablePopupCheck) "✅" else "❌"}")
