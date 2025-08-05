@@ -273,7 +273,7 @@ class TrainingFragment : PreferenceFragmentCompat() {
 				
 				// Repopulate the user selected options according to its order selected.
 				userSelectedOptions.clear()
-				selectedOptions.forEach {
+				selectedOptions.filter { it.isNotEmpty() }.forEach {
 					userSelectedOptions.add(it.toInt())
 				}
 			}
