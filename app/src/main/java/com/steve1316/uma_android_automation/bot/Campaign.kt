@@ -77,14 +77,14 @@ open class Campaign(val game: Game) {
 
 				 if (game.encounteredRacingPopup || needToRace) {
 					game.printToLog("[INFO] Racing by default.", tag = tag)
-					if ((!game.skipRacing && !handleRaceEvents()) || game.enableForceRacing) {
+					if (!game.skipRacing && !handleRaceEvents()) {
 						if (game.detectedMandatoryRaceCheck) {
 							game.printToLog("\n[END] Stopping bot due to detection of Mandatory Race.", tag = tag)
 							game.notificationMessage = "Stopping bot due to detection of Mandatory Race."
 							break
 						}
 						game.findAndTapImage("back", tries = 1, region = game.imageUtils.regionBottomHalf)
-						game.skipRacing = true
+						game.skipRacing = !game.enableForceRacing
 						game.handleTraining()
 					}
 				}

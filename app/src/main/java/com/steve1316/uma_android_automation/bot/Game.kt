@@ -410,6 +410,7 @@ class Game(val myContext: Context) {
 			// This popup is most likely the insufficient fans popup. Force an extra race to catch up on the required fans.
 			printToLog("[INFO] There is a possible insufficient fans or maiden race popup.")
 			encounteredRacingPopup = true
+			skipRacing = false
 			true
 		} else {
 			false
@@ -1864,6 +1865,10 @@ class Game(val myContext: Context) {
 			printToLog("\n[END] Bot will stop due to detecting a connection error.")
 			notificationMessage = "Bot will stop due to detecting a connection error."
 			return false
+		} else if (imageUtils.findImage("race_not_enough_fans", tries = 1, region = imageUtils.regionMiddle, suppressError = true).first != null) {
+			printToLog("[INFO] There was a popup about insufficient fans.")
+			encounteredRacingPopup = true
+			findAndTapImage("cancel", region = imageUtils.regionBottomHalf)
 		} else if (!BotService.isRunning) {
 			throw InterruptedException()
 		} else {
