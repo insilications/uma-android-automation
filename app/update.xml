@@ -1,13 +1,43 @@
 <AppUpdater>
   <update>
-    <latestVersion>2.3.4</latestVersion>
+    <latestVersion>3.0.0</latestVersion>
     <url>https://github.com/steve1316/uma-android-automation/releases</url>
     <releaseNotes>
-v2.3.4 - Changelog 
+v3.0.0 - Changelog
+
+New
+---
+- Major overhaul to training algorithm! Now smarter at hitting ideal stats and choosing the best training.
+- Added support for stat target customization per race distance.
+- Added an option to focus on getting Speed, Stamina and Power to 600+ for the best chance of a 3* Spark.
+- Added an option to always do extra races when available. Looking at you, Haru Urara.
+- Show more in-depth info in the text log, including stat targets and current settings.
+- Added support to focus on leveling up bond levels during the Junior Year phase.
+- Training now avoids working on stats that are already maxed (optional toggle).
+- Tracks current turn, year, and phase.
+- Added an option to not retry failed mandatory races (optional toggle).
+- New setting category for racing-specific options.
+
+Adjustments
+---
+- Improved accuracy when reading stat gains and mood from the screen.
+- Sped up many processes with multithreading (training analysis, stat reading, etc.).
+- Better scoring for training options, especially when rainbows or skill hints are involved.
+- Updated stat prioritization default (Wit now above Guts in priority).
+- Improved behavior when races aren't available (falls back to other actions).
+- Delay adjustments for smoother automation.
+- More robust detection of race types, stat limits, and training contexts.
 
 Fixed
 ---
-- Fixed an infinite loop from v2.3.3
+- Fixed a bug where the bot wouldn't race due to maiden race popups or low fan count.
+- Fixed typo in settings (Wits to Wit).
+- Fixed crashes related to empty strings in dialog inputs.
+- Resolved tap issues on extra race selection and other UI elements.
+- Fixed issues with parsing fan amounts and visible characters/supports.
+- Improved stability when the service is manually stopped or fails mid-task.
+- Fix possible crashes due to concurrent modifications to the MessageLog and the Accessibility Service not being ready.
+
     </releaseNotes>
   </update>
 </AppUpdater>
