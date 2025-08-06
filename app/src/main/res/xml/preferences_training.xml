@@ -31,7 +31,7 @@
 
         <CheckBoxPreference
             app:key="focusOnSparkStatTarget"
-            app:summary="Focuses on getting Speed, Stamina and Power to at least 600 for a better chance at getting a 3* Spark. Defaults to enabled."
+            app:summary="Focuses on getting Speed, Stamina and Power to at least 600 for a better chance at getting a 3* Spark. Defaults to disabled."
             app:title="Focus on Sparks for Stat Targets" />
 
         <PreferenceCategory app:title="Training Stat Targets by Distances">
