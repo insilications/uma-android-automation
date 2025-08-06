@@ -1347,7 +1347,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		var allStatBlocks = mutableListOf<Point>()
 
-		val latch = CountDownLatch(5)
+		val latch = CountDownLatch(6)
 
 		// Create arrays to store results from each thread.
 		val speedBlocks = arrayListOf<Point>()
@@ -1355,6 +1355,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		val powerBlocks = arrayListOf<Point>()
 		val gutsBlocks = arrayListOf<Point>()
 		val witBlocks = arrayListOf<Point>()
+		val friendshipBlocks = arrayListOf<Point>()
 
 		// Start parallel threads for each findAll call, passing the same source bitmap.
 		Thread {
@@ -1382,6 +1383,11 @@ class ImageUtils(context: Context, private val game: Game) {
 			latch.countDown()
 		}.start()
 
+		Thread {
+			friendshipBlocks.addAll(findAllWithBitmap("stat_friendship_block", sourceBitmap, region = customRegion))
+			latch.countDown()
+		}.start()
+
 		// Wait for all threads to complete.
 		try {
 			latch.await(10, TimeUnit.SECONDS)
@@ -1395,6 +1401,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		allStatBlocks.addAll(powerBlocks)
 		allStatBlocks.addAll(gutsBlocks)
 		allStatBlocks.addAll(witBlocks)
+		allStatBlocks.addAll(friendshipBlocks)
 
 		// Filter out duplicates based on exact coordinate matches.
 		allStatBlocks = allStatBlocks.distinctBy { "${it.x},${it.y}" }.toMutableList()
@@ -1445,15 +1452,10 @@ class ImageUtils(context: Context, private val game: Game) {
 			val bluePixels = Core.countNonZero(blueMask)
 			val greenPixels = Core.countNonZero(greenMask)
 			val orangePixels = Core.countNonZero(orangeMask)
-			Log.d(tag, "Blue pixels: $bluePixels")
-			Log.d(tag, "Green pixels: $greenPixels")
-			Log.d(tag, "Orange pixels: $orangePixels")
 
 			// Sum the colored pixels.
 			val totalColoredPixels = bluePixels + greenPixels + orangePixels
 			val totalPixels = barMat.rows() * barMat.cols()
-			Log.d(tag, "Total colored pixels: $totalColoredPixels")
-			Log.d(tag, "Total pixels: $totalPixels")
 
 			// Estimate the fill percentage based on the total colored pixels.
 			val fillPercent = if (totalPixels > 0) {
