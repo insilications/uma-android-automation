@@ -173,9 +173,9 @@ class TrainingFragment : PreferenceFragmentCompat() {
 	private fun updateSummaries() {
 		val trainingBlacklistPreference = findPreference<MultiSelectListPreference>("trainingBlacklist")!!
 		trainingBlacklistPreference.summary = if (trainingBlacklistPreference.values.isNotEmpty()) {
-			"Select Training(s) to blacklist from being selected in order to narrow the focus of overall Training.\n\nBlacklisted: ${trainingBlacklistPreference.values.joinToString(", ")}"
+			"Select Training(s) to blacklist from being selected in order to narrow the focus of overall Training. Note that the blacklist is ignored during Junior Year to focus on building bond levels.\n\nBlacklisted: ${trainingBlacklistPreference.values.joinToString(", ")}"
 		} else {
-			"Select Training(s) to blacklist from being selected in order to narrow the focus of overall Training.\n\nNone Selected"
+			"Select Training(s) to blacklist from being selected in order to narrow the focus of overall Training. Note that the blacklist is ignored during Junior Year to focus on building bond levels.\n\nNone Selected"
 		}
 		
 		val statPrioritizationPreference = findPreference<Preference>("statPrioritization")!!
