@@ -133,10 +133,10 @@ object SettingsPrinter {
 			"✨ Focus on Sparks for Stat Targets: ❌"
 		}
 		
-		val sprintTargetsString = "Sprint   		Speed: $sprintSpeedTarget, Stamina: $sprintStaminaTarget, Power: $sprintPowerTarget, Guts: $sprintGutsTarget, Wit: $sprintWitTarget"
-		val mileTargetsString = "Mile   			Speed: $mileSpeedTarget, Stamina: $mileStaminaTarget, Power: $milePowerTarget, Guts: $mileGutsTarget, Wit: $mileWitTarget"
-		val mediumTargetsString = "Medium   	Speed: $mediumSpeedTarget, Stamina: $mediumStaminaTarget, Power: $mediumPowerTarget, Guts: $mediumGutsTarget, Wit: $mediumWitTarget"
-		val longTargetsString = "Long   		Speed: $longSpeedTarget, Stamina: $longStaminaTarget, Power: $longPowerTarget, Guts: $longGutsTarget, Wit: $longWitTarget"
+		val sprintTargetsString = "Sprint: \n\t\tSpeed: $sprintSpeedTarget\t\tStamina: $sprintStaminaTarget\t\tPower: $sprintPowerTarget\n\t\tGuts: $sprintGutsTarget\t\t\tWit: $sprintWitTarget"
+		val mileTargetsString = "Mile: \n\t\tSpeed: $mileSpeedTarget\t\tStamina: $mileStaminaTarget\t\tPower: $milePowerTarget\n\t\tGuts: $mileGutsTarget\t\t\tWit: $mileWitTarget"
+		val mediumTargetsString = "Medium: \n\t\tSpeed: $mediumSpeedTarget\t\tStamina: $mediumStaminaTarget\t\tPower: $mediumPowerTarget\n\t\tGuts: $mediumGutsTarget\t\t\tWit: $mediumWitTarget"
+		val longTargetsString = "Long: \n\t\tSpeed: $longSpeedTarget\t\tStamina: $longStaminaTarget\t\tPower: $longPowerTarget\n\t\tGuts: $longGutsTarget\t\t\tWit: $longWitTarget"
 
 		////////////////////////////////////////////////////////////////////////////////////////////////////
 		////////////////////////////////////////////////////////////////////////////////////////////////////
