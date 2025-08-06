@@ -19,6 +19,7 @@ import org.opencv.core.Point
 import java.text.DecimalFormat
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.intArrayOf
 
 /**
  * Main driver for bot activity and navigation.
@@ -963,6 +964,18 @@ class Game(val myContext: Context) {
 					if (training.statGains.sum() > 40) score += 200.0
 				}
 			}
+
+			// Bonuses for skill hints.
+			val skillHintLocations = imageUtils.findAll(
+				"stat_skill_hint",
+				region = intArrayOf(
+					MediaProjectionService.displayWidth - (MediaProjectionService.displayWidth / 3),
+					0,
+					(MediaProjectionService.displayWidth / 3),
+					MediaProjectionService.displayHeight - (MediaProjectionService.displayHeight / 3)
+				)
+			)
+			score += 100.0 * skillHintLocations.size
 
 			return score.coerceIn(0.0, 1000.0)
 		}
