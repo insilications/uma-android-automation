@@ -195,7 +195,9 @@ class CharacterScraper(BaseScraper):
 
         # Get all character links.
         character_grid = driver.find_element(By.XPATH, "//div[contains(@class, 'sc-70f2d7f-0')]")
-        character_items = character_grid.find_elements(By.XPATH, ".//a[contains(@class, 'sc-73e3e686-1')]")
+        all_character_items = character_grid.find_elements(By.CSS_SELECTOR, "a.sc-73e3e686-1")
+        # Filter out hidden elements using Selenium's is_displayed() method.
+        character_items = [item for item in all_character_items if item.is_displayed()]
 
         logging.info(f"Found {len(character_items)} characters.")
         character_links = [item.get_attribute("href") for item in character_items]
@@ -260,9 +262,11 @@ class SupportCardScraper(BaseScraper):
         # Get all support card links.
         support_card_grid = driver.find_element(By.XPATH, "//div[contains(@class, 'sc-70f2d7f-0')]")
         support_card_items = support_card_grid.find_elements(By.XPATH, ".//div[contains(@class, 'sc-73e3e686-3')]")
+        # Filter out hidden elements using Selenium's is_displayed() method.
+        filtered_support_card_items = [item for item in support_card_items if item.is_displayed()]
 
-        logging.info(f"Found {len(support_card_items)} support cards.")
-        support_card_links = [item.find_element(By.XPATH, "./..").get_attribute("href") for item in support_card_items]
+        logging.info(f"Found {len(filtered_support_card_items)} support cards.")
+        support_card_links = [item.find_element(By.XPATH, "./..").get_attribute("href") for item in filtered_support_card_items]
 
         # Iterate through each support card.
         for i, link in enumerate(support_card_links):
