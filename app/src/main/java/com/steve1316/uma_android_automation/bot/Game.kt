@@ -1432,9 +1432,19 @@ class Game(val myContext: Context) {
 				// Select the next extra race.
 				if (count + 1 < maxCount) {
 					if (imageUtils.isTablet) {
-						tap(imageUtils.relX(extraRaceLocation[count].x, (-100 * 1.36).toInt()).toDouble(), imageUtils.relY(extraRaceLocation[count].y, (150 * 1.50).toInt()).toDouble(), "race_extra_selection")
+						tap(
+							imageUtils.relX(extraRaceLocation[count].x, (-100 * 1.36).toInt()).toDouble(),
+							imageUtils.relY(extraRaceLocation[count].y, (150 * 1.50).toInt()).toDouble(),
+							"race_extra_selection",
+							ignoreWaiting = true
+						)
 					} else {
-						tap(imageUtils.relX(extraRaceLocation[count].x, -100).toDouble(), imageUtils.relY(extraRaceLocation[count].y, 150).toDouble(), "race_extra_selection")
+						tap(
+							imageUtils.relX(extraRaceLocation[count].x, -100).toDouble(),
+							imageUtils.relY(extraRaceLocation[count].y, 150).toDouble(),
+							"race_extra_selection",
+							ignoreWaiting = true
+						)
 					}
 				}
 
@@ -1473,11 +1483,21 @@ class Game(val myContext: Context) {
 				printToLog("[RACE] Selecting the extra race at option #${index + 1}.")
 
 				// Select the extra race that matches the double star prediction and the most fan gain.
-				tap(extraRaceLocation[index].x - imageUtils.relWidth((100 * 1.36).toInt()), extraRaceLocation[index].y - imageUtils.relHeight(70), "race_extra_selection")
+				tap(
+					extraRaceLocation[index].x - imageUtils.relWidth((100 * 1.36).toInt()),
+					extraRaceLocation[index].y - imageUtils.relHeight(70),
+					"race_extra_selection",
+					ignoreWaiting = true
+				)
 			} else if (extraRaceLocation.isNotEmpty()) {
 				// If no maximum is determined, select the very first extra race.
 				printToLog("[RACE] Selecting the first extra race on the list by default.")
-				tap(extraRaceLocation[0].x - imageUtils.relWidth((100 * 1.36).toInt()), extraRaceLocation[0].y - imageUtils.relHeight(70), "race_extra_selection")
+				tap(
+					extraRaceLocation[0].x - imageUtils.relWidth((100 * 1.36).toInt()),
+					extraRaceLocation[0].y - imageUtils.relHeight(70),
+					"race_extra_selection",
+					ignoreWaiting = true
+				)
 			} else {
 				printToLog("[WARNING] No extra races detected and thus no fan maximums were calculated. Canceling the racing process and doing something else.")
 				return false
