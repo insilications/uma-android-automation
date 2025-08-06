@@ -194,14 +194,11 @@ class HomeFragment : Fragment() {
 		Log.d(logTag, "Now updating the Message Log TextView...")
 		val messageLogTextView = homeFragmentView.findViewById<TextView>(R.id.message_log)
 		messageLogTextView.text = ""
-		var index = 0
-		
-		// Get local copies of the message log.
-		val messageLog = MessageLog.messageLog
-		val messageLogSize = MessageLog.messageLog.size
-		while (index < messageLogSize) {
-			messageLogTextView.append("\n" + messageLog[index])
-			index += 1
+
+		// Get a thread-safe copy of the message log.
+		val messageLog = MessageLog.getMessageLogCopy()
+		messageLog.forEach { message ->
+			messageLogTextView.append("\n$message")
 		}
 		
 		// Set up the app updater to check for the latest update from GitHub.

@@ -18,6 +18,9 @@ class MessageLog {
 		private const val TAG: String = "[${MainActivity.loggerTag}]MessageLog"
 		var messageLog = arrayListOf<String>()
 		
+		// Add synchronization object for thread-safe access
+		private val messageLogLock = Object()
+		
 		var saveCheck = false
 		
 		/**
@@ -55,13 +58,47 @@ class MessageLog {
 				if (!file.exists()) {
 					file.createNewFile()
 					file.printWriter().use { out ->
-						messageLog.forEach {
-							out.println(it)
+						// Synchronize access to messageLog to prevent concurrent modification
+						synchronized(messageLogLock) {
+							messageLog.forEach {
+								out.println(it)
+							}
 						}
 					}
 					
 					saveCheck = true
 				}
+			}
+		}
+		
+		/**
+		 * Add a message to the log in a thread-safe manner.
+		 *
+		 * @param message The message to add to the log.
+		 */
+		fun addMessage(message: String) {
+			synchronized(messageLogLock) {
+				messageLog.add(message)
+			}
+		}
+		
+		/**
+		 * Clear the message log in a thread-safe manner.
+		 */
+		fun clearLog() {
+			synchronized(messageLogLock) {
+				messageLog.clear()
+			}
+		}
+		
+		/**
+		 * Get a copy of the current message log in a thread-safe manner.
+		 *
+		 * @return A copy of the current message log.
+		 */
+		fun getMessageLogCopy(): List<String> {
+			synchronized(messageLogLock) {
+				return ArrayList(messageLog)
 			}
 		}
 		

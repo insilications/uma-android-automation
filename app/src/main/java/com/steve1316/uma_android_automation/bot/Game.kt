@@ -210,15 +210,15 @@ class Game(val myContext: Context) {
 		if (message.startsWith("\n")) {
 			val newMessage = message.removePrefix("\n")
 			if (isOption) {
-				MessageLog.messageLog.add("\n" + printTime() + "\n" + newMessage)
+				MessageLog.addMessage("\n" + printTime() + "\n" + newMessage)
 			} else {
-				MessageLog.messageLog.add("\n" + printTime() + " " + newMessage)
+				MessageLog.addMessage("\n" + printTime() + " " + newMessage)
 			}
 		} else {
 			if (isOption) {
-				MessageLog.messageLog.add(printTime() + "\n" + message)
+				MessageLog.addMessage(printTime() + "\n" + message)
 			} else {
-				MessageLog.messageLog.add(printTime() + " " + message)
+				MessageLog.addMessage(printTime() + " " + message)
 			}
 		}
 	}

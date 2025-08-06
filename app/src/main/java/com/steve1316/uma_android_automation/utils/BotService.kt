@@ -130,7 +130,7 @@ class BotService : Service() {
 							thread = thread {
 								try {
 									// Clear the Message Log.
-									MessageLog.messageLog.clear()
+									MessageLog.clearLog()
 									MessageLog.saveCheck = false
 									
 									// Start with the provided settings from SharedPreferences.
