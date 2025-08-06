@@ -216,10 +216,12 @@ class TextDetection(private val game: Game, private val imageUtils: ImageUtils) 
 			return Game.Date(3, "Early", 1, 49)
 		}
  
-		// Extract the parts.
-		val yearPart = parts[0] + " " + parts[1]
-		val phase = parts[2]
-		val monthPart = parts[3]
+		// Extract the parts with safe indexing using default values.
+		val yearPart = parts.getOrNull(0)?.let { first -> 
+			parts.getOrNull(1)?.let { second -> "$first $second" }
+		} ?: "Senior Year"
+		val phase = parts.getOrNull(2) ?: "Early"
+		val monthPart = parts.getOrNull(3) ?: "Jan"
 
 		// Find the best match for year using Jaro Winkler if not found in mapping.
 		var year = years[yearPart]
