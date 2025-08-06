@@ -97,8 +97,6 @@ class ImageUtils(context: Context, private val game: Game) {
 
 	companion object {
 		private var matchFilePath: String = ""
-		private lateinit var matchLocation: Point
-		private var matchLocations: ArrayList<Point> = arrayListOf()
 
 		/**
 		 * Saves the file path to the saved match image file for debugging purposes.
@@ -163,7 +161,8 @@ class ImageUtils(context: Context, private val game: Game) {
 			val (sourceBitmap, templateBitmap) = getBitmaps(key)
 
 			// First, try the default values of 1.0 for scale and 0.8 for confidence.
-			if (match(sourceBitmap, templateBitmap!!, key, useSingleScale = true, customConfidence = defaultConfidence, testScale = 1.0)) {
+			val (success, _) = match(sourceBitmap, templateBitmap!!, key, useSingleScale = true, customConfidence = defaultConfidence, testScale = 1.0)
+			if (success) {
 				game.printToLog("[TEST] Initial test for $key succeeded at the default values.", tag = tag)
 				results[key]?.add(ScaleConfidenceResult(1.0, defaultConfidence))
 				continue // If it works, skip to the next template.
@@ -181,7 +180,8 @@ class ImageUtils(context: Context, private val game: Game) {
 				var confidence = 0.6
 				while (confidence <= 1.0) {
 					val formattedConfidence = testConfidenceDecimalFormat.format(confidence).toDouble()
-					if (match(sourceBitmap, templateBitmap, key, useSingleScale = true, customConfidence = formattedConfidence, testScale = testScale)) {
+					val (testSuccess, _) = match(sourceBitmap, templateBitmap, key, useSingleScale = true, customConfidence = formattedConfidence, testScale = testScale)
+					if (testSuccess) {
 						game.printToLog("[TEST] Test for $key succeeded at scale $testScale and confidence $formattedConfidence.", tag = tag)
 						results[key]?.add(ScaleConfidenceResult(testScale, formattedConfidence))
 					}
@@ -206,9 +206,9 @@ class ImageUtils(context: Context, private val game: Game) {
 	 * @param useSingleScale Whether to use only the single custom scale or to use a range based off of it.
 	 * @param customConfidence Specify a custom confidence. Defaults to the confidence set in the app's settings.
 	 * @param testScale Scale used by testing. Defaults to 0.0 which will fallback to the other scale conditions.
-	 * @return True if a match was found. False otherwise.
+	 * @return Pair of (success: Boolean, location: Point?) where success indicates if a match was found and location contains the match coordinates if found.
 	 */
-	private fun match(sourceBitmap: Bitmap, templateBitmap: Bitmap, templateName: String, region: IntArray = intArrayOf(0, 0, 0, 0), useSingleScale: Boolean = false, customConfidence: Double = 0.0, testScale: Double = 0.0): Boolean {
+	private fun match(sourceBitmap: Bitmap, templateBitmap: Bitmap, templateName: String, region: IntArray = intArrayOf(0, 0, 0, 0), useSingleScale: Boolean = false, customConfidence: Double = 0.0, testScale: Double = 0.0): Pair<Boolean, Point?> {
 		// If a custom region was specified, crop the source screenshot.
 		val srcBitmap = if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
 			// Validate region bounds to prevent IllegalArgumentException with creating a crop area that goes beyond the source Bitmap.
@@ -306,7 +306,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			Imgproc.matchTemplate(sourceMat, clampedTemplateMat, resultMat, matchMethod)
 			val mmr: Core.MinMaxLocResult = Core.minMaxLoc(resultMat)
 
-			matchLocation = Point()
+			var matchLocation = Point()
 			var matchCheck = false
 
 			// Format minVal or maxVal.
@@ -355,7 +355,7 @@ class ImageUtils(context: Context, private val game: Game) {
 					matchLocation.y = sourceBitmap.height - (sourceBitmap.height - (region[1] + matchLocation.y))
 				}
 
-				return true
+				return Pair(true, matchLocation)
 			}
 
 			if (!BotService.isRunning) {
@@ -368,7 +368,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			resultMat.release()
 		}
 
-		return false
+		return Pair(false, null)
 	}
 
 	/**
@@ -381,6 +381,10 @@ class ImageUtils(context: Context, private val game: Game) {
 	 * @return ArrayList of Point objects that represents the matches found on the source screenshot.
 	 */
 	private fun matchAll(sourceBitmap: Bitmap, templateBitmap: Bitmap, region: IntArray = intArrayOf(0, 0, 0, 0), customConfidence: Double = 0.0): java.util.ArrayList<Point> {
+		// Create a local matchLocations list for this method
+		var matchLocation = Point()
+		val matchLocations = arrayListOf<Point>()
+		
 		// If a custom region was specified, crop the source screenshot.
 		val srcBitmap = if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
 			// Validate region bounds to prevent IllegalArgumentException with creating a crop area that goes beyond the source Bitmap.
@@ -478,8 +482,6 @@ class ImageUtils(context: Context, private val game: Game) {
 			// Now perform the matching and localize the result.
 			Imgproc.matchTemplate(sourceMat, clampedTemplateMat, resultMat, matchMethod)
 			val mmr: Core.MinMaxLocResult = Core.minMaxLoc(resultMat)
-
-			matchLocation = Point()
 
 			// Depending on which matching method was used, the algorithms determine which location was the best.
 			if ((matchMethod == Imgproc.TM_SQDIFF || matchMethod == Imgproc.TM_SQDIFF_NORMED) && mmr.minVal <= (1.0 - setConfidence)) {
@@ -721,7 +723,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		while (numberOfTries > 0) {
 			if (templateBitmap != null) {
-				val resultFlag: Boolean = match(sourceBitmap, templateBitmap, templateName, region)
+				val (resultFlag, location) = match(sourceBitmap, templateBitmap, templateName, region)
 				if (!resultFlag) {
 					numberOfTries -= 1
 					if (numberOfTries <= 0) {
@@ -736,8 +738,8 @@ class ImageUtils(context: Context, private val game: Game) {
 					game.wait(0.1)
 					sourceBitmap = getSourceBitmap()
 				} else {
-					game.printToLog("[SUCCESS] Found the ${templateName.uppercase()} at $matchLocation.", tag = tag)
-					return Pair(matchLocation, sourceBitmap)
+					game.printToLog("[SUCCESS] Found the ${templateName.uppercase()} at $location.", tag = tag)
+					return Pair(location, sourceBitmap)
 				}
 			}
 		}
@@ -765,7 +767,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		while (numberOfTries > 0) {
 			if (templateBitmap != null) {
-				val resultFlag: Boolean = match(sourceBitmap, templateBitmap, templateName, region)
+				val (resultFlag, _) = match(sourceBitmap, templateBitmap, templateName, region)
 				if (!resultFlag) {
 					numberOfTries -= 1
 					if (numberOfTries <= 0) {
@@ -800,24 +802,23 @@ class ImageUtils(context: Context, private val game: Game) {
 	fun findAll(templateName: String, region: IntArray = intArrayOf(0, 0, 0, 0)): ArrayList<Point> {
 		val (sourceBitmap, templateBitmap) = getBitmaps(templateName)
 
-		// Clear the ArrayList first before attempting to find all matches.
-		matchLocations.clear()
-
 		if (templateBitmap != null) {
-			matchAll(sourceBitmap, templateBitmap, region = region)
+			val matchLocations = matchAll(sourceBitmap, templateBitmap, region = region)
+			
+			// Sort the match locations by ascending x and y coordinates.
+			matchLocations.sortBy { it.x }
+			matchLocations.sortBy { it.y }
+
+			if (debugMode) {
+				game.printToLog("[DEBUG] Found match locations for $templateName: $matchLocations.", tag = tag)
+			} else {
+				Log.d(tag, "[DEBUG] Found match locations for $templateName: $matchLocations.")
+			}
+
+			return matchLocations
 		}
-
-		// Sort the match locations by ascending x and y coordinates.
-		matchLocations.sortBy { it.x }
-		matchLocations.sortBy { it.y }
-
-		if (debugMode) {
-			game.printToLog("[DEBUG] Found match locations for $templateName: $matchLocations.", tag = tag)
-		} else {
-			Log.d(tag, "[DEBUG] Found match locations for $templateName: $matchLocations.")
-		}
-
-		return matchLocations
+		
+		return arrayListOf()
 	}
 
 	/**
@@ -834,24 +835,23 @@ class ImageUtils(context: Context, private val game: Game) {
 			templateBitmap = BitmapFactory.decodeStream(inputStream)
 		}
 
-		// Clear the ArrayList first before attempting to find all matches.
-		matchLocations.clear()
-
 		if (templateBitmap != null) {
-			matchAll(sourceBitmap, templateBitmap, region = region)
+			val matchLocations = matchAll(sourceBitmap, templateBitmap, region = region)
+			
+			// Sort the match locations by ascending x and y coordinates.
+			matchLocations.sortBy { it.x }
+			matchLocations.sortBy { it.y }
+
+			if (debugMode) {
+				game.printToLog("[DEBUG] Found match locations for $templateName: $matchLocations.", tag = tag)
+			} else {
+				Log.d(tag, "[DEBUG] Found match locations for $templateName: $matchLocations.")
+			}
+
+			return matchLocations
 		}
-
-		// Sort the match locations by ascending x and y coordinates.
-		matchLocations.sortBy { it.x }
-		matchLocations.sortBy { it.y }
-
-		if (debugMode) {
-			game.printToLog("[DEBUG] Found match locations for $templateName: $matchLocations.", tag = tag)
-		} else {
-			Log.d(tag, "[DEBUG] Found match locations for $templateName: $matchLocations.")
-		}
-
-		return matchLocations
+		
+		return arrayListOf()
 	}
 
 	/**
@@ -906,7 +906,11 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		// Acquire the location of the energy text image.
 		val (_, energyTemplateBitmap) = getBitmaps("energy")
-		match(sourceBitmap, energyTemplateBitmap!!, "energy")
+		val (_, matchLocation) = match(sourceBitmap, energyTemplateBitmap!!, "energy")
+		if (matchLocation == null) {
+			game.printToLog("[WARNING] Could not proceed with OCR text detection due to not being able to find the energy template on the source image.")
+			return "empty!"
+		}
 
 		// Use the match location acquired from finding the energy text image and acquire the (x, y) coordinates of the event title container right below the location of the energy text image.
 		val newX: Int
@@ -926,7 +930,8 @@ class ImageUtils(context: Context, private val game: Game) {
 		if (debugMode) Imgcodecs.imwrite("$matchFilePath/debugEventTitleText.png", tempImage)
 
 		// Now see if it is necessary to shift the cropped region over by 70 pixels or not to account for certain events.
-		croppedBitmap = if (match(croppedBitmap, templateBitmap!!, "shift")) {
+		val (shiftMatch, _) = match(croppedBitmap, templateBitmap!!, "shift")
+		croppedBitmap = if (shiftMatch) {
 			Log.d(tag, "Shifting the region over by 70 pixels!")
 			Bitmap.createBitmap(sourceBitmap, relX(newX.toDouble(), 70), newY, 645 - 70, 65)
 		} else {
@@ -1198,7 +1203,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		if (debugMode) Imgcodecs.imwrite("$matchFilePath/debugExtraRacePrediction.png", cvImage)
 
 		// Determine if the extra race has double star prediction.
-		val predictionCheck = match(croppedBitmap, doubleStarPredictionBitmap, "race_extra_double_prediction")
+		val (predictionCheck, _) = match(croppedBitmap, doubleStarPredictionBitmap, "race_extra_double_prediction")
 
 		return if (forceRacing || predictionCheck) {
 			if (debugMode && !forceRacing) game.printToLog("[DEBUG] This race has double predictions. Now checking how many fans this race gives.", tag = tag)
@@ -1424,7 +1429,8 @@ class ImageUtils(context: Context, private val game: Game) {
 			if (debugMode) game.printToLog("[DEBUG] Processing stat block #${index + 1} at position: (${statBlock.x}, ${statBlock.y})", tag = tag)
 
 			val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(statBlock.x, -9), relY(statBlock.y, 107), 111, 13)
-			if (match(croppedBitmap, maxedTemplateBitmap!!, "stat_maxed")) {
+			val (isMaxed, _) = match(croppedBitmap, maxedTemplateBitmap!!, "stat_maxed")
+			if (isMaxed) {
 				// Skip if the relationship bar is already maxed.
 				if (debugMode) game.printToLog("[DEBUG] Relationship bar #${index + 1} is full.", tag = tag)
 				results.add(BarFillResult(100.0, 5, "orange"))
@@ -1515,16 +1521,16 @@ class ImageUtils(context: Context, private val game: Game) {
 			val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(distanceLocation.x, 108 + (i * 190)), relY(distanceLocation.y, -25), 176, 52)
 
 			when {
-				match(croppedBitmap, statAptitudeSTemplate!!, "stat_aptitude_S") -> {
+				match(croppedBitmap, statAptitudeSTemplate!!, "stat_aptitude_S").first -> {
 					// S aptitude found - this is the best possible, return immediately.
 					return distance
 				}
-				bestAptitudeLevel < 1 && match(croppedBitmap, statAptitudeATemplate!!, "stat_aptitude_A") -> {
+				bestAptitudeLevel < 1 && match(croppedBitmap, statAptitudeATemplate!!, "stat_aptitude_A").first -> {
 					// A aptitude found (pick the leftmost aptitude) - better than B, but keep looking for S.
 					bestAptitudeDistance = distance
 					bestAptitudeLevel = 1
 				}
-				bestAptitudeLevel < 0 && match(croppedBitmap, statAptitudeBTemplate!!, "stat_aptitude_B") -> {
+				bestAptitudeLevel < 0 && match(croppedBitmap, statAptitudeBTemplate!!, "stat_aptitude_B").first -> {
 					// B aptitude found - only use if no A aptitude found yet.
 					bestAptitudeDistance = distance
 					bestAptitudeLevel = 0
@@ -1834,7 +1840,7 @@ class ImageUtils(context: Context, private val game: Game) {
 								}
 							}
 
-							Imgcodecs.imwrite("$matchFilePath/debug_trainingStatGain_${statName}_thread${i + 1}.png", resultMat)
+							Imgcodecs.imwrite("$matchFilePath/debug_trainingStatGain_${statNames[i]}_thread${i + 1}.png", resultMat)
 						}
 
 						sourceMat.release()
