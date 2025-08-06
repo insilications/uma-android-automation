@@ -4,21 +4,28 @@
 
 > Discord here: https://discord.gg/5Yv4kqjAbm
 
-> Data last updated November 10, 2021 (Tosen Jordan update)
-
 This Android application written in Kotlin is designed to fully automate a run of Uma Musume Pretty Derby by offering a set of options to customize what event rewards the bot should prioritise, stats to focus on, etc. Building on top of the work done for ![Uma Android Training Helper](https://github.com/steve1316/uma-android-training-helper), this aims to solve the issue of spending too much hands-on time with completing a run for Uma Musume Pretty Derby.
 
 https://user-images.githubusercontent.com/18709555/125517168-61b72aa4-28be-4868-b160-2ff4aa4d73f6.mp4
 
 # Disclaimer
 
-Any usage of this tool is at your own risk. No one will be responsible for anything that happens to you or your own account except for yourself.
+This project is purely for educational purposes to learn about Android automation and computer vision - basically a fun way to practice coding skills. Any usage is at your own risk. No one will be responsible for anything that happens to you or your own account except for yourself.
 
 # Requirements
 
 -   Android Device or Emulator (Nougat 7.0+)
-    -   Tablet needs to be a minimum width of 1600 pixels (like the Galaxy Tab S7 with its 2650x1600 pixel resolution).
-    -   Tested emulator was Bluestacks 5. Make sure to have the device be in Portrait Mode BEFORE starting the bot as emulators do not have a way to tell the bot that it rotated.
+    -   For the best performance and stability on phones, the device needs to be at 1080p display resolution. The speed is also best at 1080p and for other resolutions, it becomes dependent on the manual scale that you can set in the settings. Right now it defaults to 1.0 which uses 1080p as the baseline. You can determine what scales may be good for you with the template match test that you can enable in the settings as well.
+        -   If you change the display resolution while the overlay button is still active, you will need to restart the app in order for the display changes to persist to the `MediaProjection` service.
+    -   Tested emulator was on Bluestacks 5 (Pie 64-bit). The following setup is required:
+        -   Portrait Mode needs to be forced on always.
+        -   Bluestacks itself needs to be updated to the latest version to avoid Uma Musume crashing.
+        -   In the Bluestacks Settings > Phone, the predefined profile needs to be set to a modern high-end phone like the Samsung Galaxy S22.
+        -   Device setup:
+            -   4 CPU Cores
+            -   4GB Memory
+            -   Display resolution set to Portrait 1080 x 1920
+            -   Pixel density 240 DPI (Medium)
 
 # Features
 
@@ -26,6 +33,7 @@ Any usage of this tool is at your own risk. No one will be responsible for anyth
 -   [x] Settings to customize preferences and stat prioritization for Training Events.
 -   [x] Handles races, both via skipping and running the race manually.
 -   [x] Runs extra races to farm fans when enabled in the settings.
+-   [x] A multitude of settings to configure including setting preferred stat targets per distance.
 
 # Instructions
 
@@ -41,6 +49,17 @@ Any usage of this tool is at your own risk. No one will be responsible for anyth
 
 7. Press the overlay button to start the automation process. It is highly recommended to turn on notifications for the app.
     1. The bot will not start on any other screen than what is shown above.
+
+## To view Logs in Real-time
+
+1. Install `Android Studio` and create any new project or open an existing one in order for the `Logcat` console to appear at the bottom.
+2. Connect your Android device to your computer:
+   - **USB Connection:** Enable `Developer Options` and `USB Debugging` on your device, then connect via USB cable.
+   - **Wireless Connection:** In Developer Options, enable `Wireless debugging` and pair your device using the pairing code or QR code.
+   - **Bluestacks or other emulators** In the emulator settings, there is usually an option to open up to allow ADB wireless connection on `127.0.0.1:5555`. Enabling that option should be enough but if Android Studio still does not see it, you can open up a terminal like `cmd` and type `adb connect 127.0.0.1:5555` and it should say `connected to 127.0.0.1:5555`. You may need to type `adb disconnect` to disconnect all ADB connections beforehand for a fresh slate.
+3. In Android Studio's Logcat console at the bottom of the window, select your connected device from the device dropdown menu.
+4. Filter the logs by typing `package:com.steve1316.uma_android_automation [UAA]` or just `[UAA]` in the search box to see only the logs from this app.
+5. Run the app - you'll now see all of its logs appear in real-time as it runs.
 
 # For Developers
 
@@ -68,9 +87,10 @@ kotlin {
 # Technologies Used
 
 1. [jpn.traineddata from UmaUmaCruise by @amate](https://github.com/amate/UmaUmaCruise)
-2. [MediaProjection - Used to obtain full screenshots](https://developer.android.com/reference/android/media/projection/MediaProjection)
-3. [AccessibilityService - Used to dispatch gestures like tapping and scrolling](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService)
-4. [OpenCV Android - Used to template match](https://opencv.org/releases/)
-5. [Tesseract4Android - For performing OCR on the screen](https://github.com/adaptech-cz/Tesseract4Android)
-6. [string-similarity - For comparing string similarities during text detection](https://github.com/rrice/java-string-similarity)
-7. [AppUpdater - For automatically checking and notifying the user for new app updates](https://github.com/javiersantos/AppUpdater)
+2. [eng.traineddata from tessdata](https://github.com/tesseract-ocr/tessdata)
+3. [MediaProjection - Used to obtain full screenshots](https://developer.android.com/reference/android/media/projection/MediaProjection)
+4. [AccessibilityService - Used to dispatch gestures like tapping and scrolling](https://developer.android.com/reference/android/accessibilityservice/AccessibilityService)
+5. [OpenCV Android - Used to template match](https://opencv.org/releases/)
+6. [Tesseract4Android - For performing OCR on the screen](https://github.com/adaptech-cz/Tesseract4Android)
+7. [string-similarity - For comparing string similarities during text detection](https://github.com/rrice/java-string-similarity)
+8. [AppUpdater - For automatically checking and notifying the user for new app updates](https://github.com/javiersantos/AppUpdater)

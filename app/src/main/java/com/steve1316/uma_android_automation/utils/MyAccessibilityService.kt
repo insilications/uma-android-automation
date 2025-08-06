@@ -40,6 +40,12 @@ class MyAccessibilityService : AccessibilityService() {
 		 * @return Static reference to MyAccessibilityService.
 		 */
 		fun getInstance(): MyAccessibilityService {
+			if (!::instance.isInitialized) {
+				throw IllegalStateException("Accessibility Service not initialized. Disable and re-enable the Accessibility Service.")
+			}
+			if (!BotService.isRunning) {
+				throw IllegalStateException("Accessibility Service is not running. Enable the Accessibility Service.")
+			}
 			return instance
 		}
 	}

@@ -7,6 +7,7 @@ import android.util.Log
 import android.widget.Toast
 import androidx.core.content.edit
 import androidx.preference.*
+import androidx.navigation.fragment.findNavController
 import com.steve1316.uma_android_automation.MainActivity
 import com.steve1316.uma_android_automation.R
 
@@ -31,15 +32,22 @@ class TrainingFragment : PreferenceFragmentCompat() {
 		// Grab the saved preferences from the previous time the user used the app.
 		val trainingBlacklist = sharedPreferences.getStringSet("trainingBlacklist", setOf())
 		val maximumFailureChance = sharedPreferences.getInt("maximumFailureChance", 15)
+		val disableTrainingOnMaxedStat = sharedPreferences.getBoolean("disableTrainingOnMaxedStat", true)
+		val focusOnSparkStatTarget = sharedPreferences.getBoolean("focusOnSparkStatTarget", false)
 		
 		// Get references to the Preference components.
 		val trainingBlacklistPreference = findPreference<MultiSelectListPreference>("trainingBlacklist")!!
 		val maximumFailureChancePreference = findPreference<SeekBarPreference>("maximumFailureChance")!!
+		val disableTrainingOnMaxedStatPreference = findPreference<CheckBoxPreference>("disableTrainingOnMaxedStat")!!
+		val focusOnSparkStatTargetPreference = findPreference<CheckBoxPreference>("focusOnSparkStatTarget")!!
 		
 		// Now set the following values from the SharedPreferences.
 		trainingBlacklistPreference.values = trainingBlacklist
 		maximumFailureChancePreference.value = maximumFailureChance
+		disableTrainingOnMaxedStatPreference.isChecked = disableTrainingOnMaxedStat
+		focusOnSparkStatTargetPreference.isChecked = focusOnSparkStatTarget
 		createMultiSelectAlertDialog()
+		setupStatTargetPreferences()
 		
 		// Set this Preference listener to prevent users from blacklisting all 5 Trainings.
 		trainingBlacklistPreference.onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _: Preference, newValue: Any? ->
@@ -57,7 +65,56 @@ class TrainingFragment : PreferenceFragmentCompat() {
 		Log.d(logTag, "Training Preferences created successfully.")
 	}
 	
-	// This listener is triggered whenever the user changes a Preference setting in the Settings Page.
+	/**
+	 * Setup click listeners for the stat target preferences to navigate to TrainingStatTargetFragment.
+	 */
+	private fun setupStatTargetPreferences() {
+		// Sprint distance
+		val sprintPreference = findPreference<Preference>("trainingSprintStatTarget")!!
+		sprintPreference.setOnPreferenceClickListener {
+			val bundle = Bundle().apply {
+				putString("distanceType", "trainingSprintStatTarget")
+				putString("distanceTitle", "Sprint")
+			}
+			findNavController().navigate(R.id.nav_training_stat_target, bundle)
+			true
+		}
+		
+		// Mile distance
+		val milePreference = findPreference<Preference>("trainingMileStatTarget")!!
+		milePreference.setOnPreferenceClickListener {
+			val bundle = Bundle().apply {
+				putString("distanceType", "trainingMileStatTarget")
+				putString("distanceTitle", "Mile")
+			}
+			findNavController().navigate(R.id.nav_training_stat_target, bundle)
+			true
+		}
+		
+		// Medium distance
+		val mediumPreference = findPreference<Preference>("trainingMediumStatTarget")!!
+		mediumPreference.setOnPreferenceClickListener {
+			val bundle = Bundle().apply {
+				putString("distanceType", "trainingMediumStatTarget")
+				putString("distanceTitle", "Medium")
+			}
+			findNavController().navigate(R.id.nav_training_stat_target, bundle)
+			true
+		}
+		
+		// Long distance
+		val longPreference = findPreference<Preference>("trainingLongStatTarget")!!
+		longPreference.setOnPreferenceClickListener {
+			val bundle = Bundle().apply {
+				putString("distanceType", "trainingLongStatTarget")
+				putString("distanceTitle", "Long")
+			}
+			findNavController().navigate(R.id.nav_training_stat_target, bundle)
+			true
+		}
+	}
+	
+	// This listener is triggered whenever the user changes a Preference setting in the Training Settings Page.
 	private val onSharedPreferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
 		if (key != null) {
 			when (key) {
@@ -77,6 +134,20 @@ class TrainingFragment : PreferenceFragmentCompat() {
 						commit()
 					}
 				}
+				"disableTrainingOnMaxedStat" -> {
+					val disableTrainingOnMaxedStatPreference = findPreference<CheckBoxPreference>("disableTrainingOnMaxedStat")!!
+					sharedPreferences.edit {
+						putBoolean("disableTrainingOnMaxedStat", disableTrainingOnMaxedStatPreference.isChecked)
+						commit()
+					}
+				}
+				"focusOnSparkStatTarget" -> {
+					val focusOnSparkStatTargetPreference = findPreference<CheckBoxPreference>("focusOnSparkStatTarget")!!
+					sharedPreferences.edit {
+						putBoolean("focusOnSparkStatTarget", focusOnSparkStatTargetPreference.isChecked)
+						commit()
+					}
+				}
 			}
 			
 			updateSummaries()
@@ -88,6 +159,7 @@ class TrainingFragment : PreferenceFragmentCompat() {
 		
 		// Makes sure that OnSharedPreferenceChangeListener works properly and avoids the situation where the app suddenly stops triggering the listener.
 		preferenceScreen.sharedPreferences?.registerOnSharedPreferenceChangeListener(onSharedPreferenceChangeListener)
+		updateSummaries()
 	}
 	
 	override fun onPause() {
@@ -120,8 +192,45 @@ class TrainingFragment : PreferenceFragmentCompat() {
 			summaryBody
 		} else {
 			"Select Stat(s) to prioritize in order from highest priority to lowest. Any stat not selected will be assigned the lowest priority.\n\nFollowing Default Prioritisation Order:\n1. " +
-					"Speed\n2. Stamina\n3. Power\n4. Guts\n5. Wit"
+					"Speed\n2. Stamina\n3. Power\n4. Wit\n5. Guts"
 		}
+		
+		// Update the stat target summaries for each distance type.
+		// Sprint distance
+		val sprintPreference = findPreference<Preference>("trainingSprintStatTarget")!!
+		val sprintSpeed = sharedPreferences.getInt("trainingSprintStatTarget_speedStatTarget", 900)
+		val sprintStamina = sharedPreferences.getInt("trainingSprintStatTarget_staminaStatTarget", 300)
+		val sprintPower = sharedPreferences.getInt("trainingSprintStatTarget_powerStatTarget", 600)
+		val sprintGuts = sharedPreferences.getInt("trainingSprintStatTarget_gutsStatTarget", 300)
+		val sprintWit = sharedPreferences.getInt("trainingSprintStatTarget_witStatTarget", 300)
+		sprintPreference.summary = "Set the stat targets for Sprint distance.\n\nCurrent Targets:\nSpeed: $sprintSpeed\nStamina: $sprintStamina\nPower: $sprintPower\nGuts: $sprintGuts\nWit: $sprintWit"
+
+		// Mile distance
+		val milePreference = findPreference<Preference>("trainingMileStatTarget")!!
+		val mileSpeed = sharedPreferences.getInt("trainingMileStatTarget_speedStatTarget", 900)
+		val mileStamina = sharedPreferences.getInt("trainingMileStatTarget_staminaStatTarget", 300)
+		val milePower = sharedPreferences.getInt("trainingMileStatTarget_powerStatTarget", 600)
+		val mileGuts = sharedPreferences.getInt("trainingMileStatTarget_gutsStatTarget", 300)
+		val mileWit = sharedPreferences.getInt("trainingMileStatTarget_witStatTarget", 300)
+		milePreference.summary = "Set the stat targets for Mile distance.\n\nCurrent Targets:\nSpeed: $mileSpeed\nStamina: $mileStamina\nPower: $milePower\nGuts: $mileGuts\nWit: $mileWit"
+
+		// Medium distance
+		val mediumPreference = findPreference<Preference>("trainingMediumStatTarget")!!
+		val mediumSpeed = sharedPreferences.getInt("trainingMediumStatTarget_speedStatTarget", 800)
+		val mediumStamina = sharedPreferences.getInt("trainingMediumStatTarget_staminaStatTarget", 450)
+		val mediumPower = sharedPreferences.getInt("trainingMediumStatTarget_powerStatTarget", 550)
+		val mediumGuts = sharedPreferences.getInt("trainingMediumStatTarget_gutsStatTarget", 300)
+		val mediumWit = sharedPreferences.getInt("trainingMediumStatTarget_witStatTarget", 300)
+		mediumPreference.summary = "Set the stat targets for Medium distance.\n\nCurrent Targets:\nSpeed: $mediumSpeed\nStamina: $mediumStamina\nPower: $mediumPower\nGuts: $mediumGuts\nWit: $mediumWit"
+
+		// Long distance
+		val longPreference = findPreference<Preference>("trainingLongStatTarget")!!
+		val longSpeed = sharedPreferences.getInt("trainingLongStatTarget_speedStatTarget", 700)
+		val longStamina = sharedPreferences.getInt("trainingLongStatTarget_staminaStatTarget", 600)
+		val longPower = sharedPreferences.getInt("trainingLongStatTarget_powerStatTarget", 450)
+		val longGuts = sharedPreferences.getInt("trainingLongStatTarget_gutsStatTarget", 300)
+		val longWit = sharedPreferences.getInt("trainingLongStatTarget_witStatTarget", 300)
+		longPreference.summary = "Set the stat targets for Long distance.\n\nCurrent Targets:\nSpeed: $longSpeed\nStamina: $longStamina\nPower: $longPower\nGuts: $longGuts\nWit: $longWit"
 	}
 	
 	/**
@@ -164,7 +273,7 @@ class TrainingFragment : PreferenceFragmentCompat() {
 				
 				// Repopulate the user selected options according to its order selected.
 				userSelectedOptions.clear()
-				selectedOptions.forEach {
+				selectedOptions.filter { it.isNotEmpty() }.forEach {
 					userSelectedOptions.add(it.toInt())
 				}
 			}

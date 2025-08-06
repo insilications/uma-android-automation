@@ -125,12 +125,14 @@ class BotService : Service() {
 							// Switch animations from the play to the stop button animations.
 							startAnimations()
 
-							val game = Game(myContext)
-							
+							var game: Game? = null
+
 							thread = thread {
 								try {
+									game = Game(myContext)
+									
 									// Clear the Message Log.
-									MessageLog.messageLog.clear()
+									MessageLog.clearLog()
 									MessageLog.saveCheck = false
 									
 									// Start with the provided settings from SharedPreferences.
@@ -143,7 +145,7 @@ class BotService : Service() {
 										NotificationUtils.updateNotification(myContext, false, "Bot was manually stopped.")
 									} else {
 										NotificationUtils.updateNotification(myContext, false, "Encountered an Exception: $e.\nTap me to see more details.")
-										game.printToLog("$appName encountered an Exception: ${e.stackTraceToString()}", tag = tag, isError = true)
+                                        game?.printToLog("$appName encountered an Exception: ${e.stackTraceToString()}", tag = tag, isError = true)
 									}
 								} finally {
 									performCleanUp()

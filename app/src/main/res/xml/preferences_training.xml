@@ -12,8 +12,13 @@
 
         <Preference
             app:key="statPrioritization"
-            app:summary="Select Stat(s) to focus in order with descending priority. Will affect training event option selection.\n\nFollowing Default Prioritization Order:\n1. Speed\n2. Stamina\n3. Power\n4. Guts\n5. Wit"
+            app:summary="Select Stat(s) to focus in order with descending priority. Will affect training event option selection.\n\nFollowing Default Prioritization Order:\n1. Speed\n2. Stamina\n3. Power\n4. Wit\n5. Guts"
             app:title="Prioritize Training Certain Stats" />
+
+        <CheckBoxPreference
+            app:key="disableTrainingOnMaxedStat"
+            app:summary="Disables training on a maxed out stat (1200 for example). Defaults to enabled."
+            app:title="Disable Training on Maxed out Stat" />
 
         <SeekBarPreference
             android:defaultValue="15"
@@ -23,6 +28,35 @@
             app:showSeekBarValue="true"
             app:summary="Set the maximum failure chance that Training is allowed to have before recovering energy. Default is at 15%."
             app:title="Set Maximum Failure Chance" />
+
+        <CheckBoxPreference
+            app:key="focusOnSparkStatTarget"
+            app:summary="Focuses on getting Speed, Stamina and Power to at least 600 for a better chance at getting a 3* Spark. Defaults to enabled."
+            app:title="Focus on Sparks for Stat Targets" />
+
+        <PreferenceCategory app:title="Training Stat Targets by Distances">
+
+            <Preference
+                app:key="trainingSprintStatTarget"
+                app:summary="Set the stat targets for Sprint distance.\n\nCurrent Targets:\nSpeed: 900\nStamina: 300\nPower: 600\nGuts: 300\nWit: 300"
+                app:title="Sprint" />
+
+            <Preference
+                app:key="trainingMileStatTarget"
+                app:summary="Set the stat targets for Mile distance.\n\nCurrent Targets:\nSpeed: 900\nStamina: 300\nPower: 600\nGuts: 300\nWit: 300"
+                app:title="Mile" />
+
+            <Preference
+                app:key="trainingMediumStatTarget"
+                app:summary="Set the stat targets for Medium distance.\n\nCurrent Targets:\nSpeed: 800\nStamina: 450\nPower: 550\nGuts: 300\nWit: 300"
+                app:title="Medium" />
+
+            <Preference
+                app:key="trainingLongStatTarget"
+                app:summary="Set the stat targets for Long distance.\n\nCurrent Targets:\nSpeed: 700\nStamina: 600\nPower: 450\nGuts: 300\nWit: 300"
+                app:title="Long" />
+
+        </PreferenceCategory>
 
     </PreferenceCategory>
 </PreferenceScreen>

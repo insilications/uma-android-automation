@@ -20,7 +20,7 @@ class TrainingEventFragment : PreferenceFragmentCompat() {
 	private lateinit var checkedItems: BooleanArray
 	private var userSelectedOptions: ArrayList<Int> = arrayListOf()
 	
-	// This listener is triggered whenever the user changes a Preference setting in the Settings Page.
+	// This listener is triggered whenever the user changes a Preference setting in the Training Event Settings Page.
 	private val onSharedPreferenceChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
 		val characterPicker: ListPreference = findPreference("characterPicker")!!
 		val selectAllCharactersCheckBox: CheckBoxPreference = findPreference("selectAllCharactersCheckBox")!!
