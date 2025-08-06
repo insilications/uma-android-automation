@@ -938,33 +938,33 @@ class Game(val myContext: Context) {
 		 */
 		fun calculateContextScore(training: Training): Double {
 			// Start with neutral score.
-			var score = 50.0
+			var score = 100.0
 
 			// Bonus for rainbow training.
 			if (training.isRainbow) {
-				score *= 2
+				score *= 5
 			}
 
 			// Bonuses for each game phase.
 			when {
 				currentDate.year == 1 || currentDate.phase == "Pre-Debut" -> {
 					// Prefer relationship building and balanced stat gains.
-					if (training.relationshipBars.isNotEmpty()) score += 10.0
-					if (training.statGains.sum() > 15) score += 5.0
+					if (training.relationshipBars.isNotEmpty()) score += 50.0
+					if (training.statGains.sum() > 15) score += 50.0
 				}
 				currentDate.year == 2 -> {
 					// Focus on stat efficiency.
-					score += 10.0
-					if (training.statGains.sum() > 20) score += 10.0
+					score += 50.0
+					if (training.statGains.sum() > 20) score += 100.0
 				}
 				currentDate.year == 3 -> {
 					// Prioritize target achievement
-					score += 15.0
-					if (training.statGains.sum() > 40) score += 30.0
+					score += 100.0
+					if (training.statGains.sum() > 40) score += 200.0
 				}
 			}
 
-			return score.coerceIn(0.0, 200.0)
+			return score.coerceIn(0.0, 1000.0)
 		}
 
 		/**
