@@ -47,7 +47,7 @@ This project is purely for educational purposes to learn about Android automatio
 
 > ![main screen](https://user-images.githubusercontent.com/18709555/125517626-d276cda0-bffa-441d-a511-a222237837a1.jpg)
 
-7. Press the overlay button to start the automation process. It is highly recommended to turn on notifications for the app.
+7. Press the overlay button to start the automation process. For enabling app notifications, it is recommended to have a notification style that is small enough that it does not fully cover the top part of the screen where it contains the date, energy, turn number, etc. Or disable notifications if you do not want to worry about it.
     1. The bot will not start on any other screen than what is shown above.
 
 ## To view Logs in Real-time
