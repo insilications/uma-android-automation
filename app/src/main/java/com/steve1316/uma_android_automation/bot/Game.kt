@@ -1408,99 +1408,110 @@ class Game(val myContext: Context) {
 			}
 			val listOfFans = mutableListOf<Int>()
 			val extraRaceLocation = mutableListOf<Point>()
-			val (sourceBitmap, templateBitmap) = imageUtils.getBitmaps("race_extra_double_prediction")
-			val listOfRaces: ArrayList<ImageUtils.RaceDetails> = arrayListOf()
-			while (count < maxCount) {
-				// Save the location of the selected extra race.
-				val selectedExtraRace = imageUtils.findImage("race_extra_selection", region = imageUtils.regionBottomHalf).first
-				if (selectedExtraRace == null) {
-					printToLog("[ERROR] Unable to find the location of the selected extra race. Canceling the racing process and doing something else.", isError = true)
-					break
-				}
-				extraRaceLocation.add(selectedExtraRace)
-
-				// Determine its fan gain and save it.
-				val raceDetails: ImageUtils.RaceDetails = imageUtils.determineExtraRaceFans(extraRaceLocation[count], sourceBitmap, templateBitmap!!, forceRacing = enableForceRacing)
-				listOfRaces.add(raceDetails)
-				if (count == 0 && raceDetails.fans == -1) {
-					// If the fans were unable to be fetched or the race does not have double predictions for the first attempt, skip racing altogether.
-					listOfFans.add(raceDetails.fans)
-					break
-				}
-				listOfFans.add(raceDetails.fans)
-
-				// Select the next extra race.
-				if (count + 1 < maxCount) {
-					if (imageUtils.isTablet) {
-						tap(
-							imageUtils.relX(extraRaceLocation[count].x, (-100 * 1.36).toInt()).toDouble(),
-							imageUtils.relY(extraRaceLocation[count].y, (150 * 1.50).toInt()).toDouble(),
-							"race_extra_selection",
-							ignoreWaiting = true
-						)
-					} else {
-						tap(
-							imageUtils.relX(extraRaceLocation[count].x, -100).toDouble(),
-							imageUtils.relY(extraRaceLocation[count].y, 150).toDouble(),
-							"race_extra_selection",
-							ignoreWaiting = true
-						)
-					}
-				}
-
-				wait(0.5)
-
-				count++
-			}
-
-			val fansList = listOfRaces.joinToString(", ") { it.fans.toString() }
-			printToLog("[RACE] Number of fans detected for each extra race are: $fansList")
-
-			// Next determine the maximum fans and select the extra race.
-			val maxFans: Int? = listOfFans.maxOrNull()
-			if (maxFans != null) {
-				if (maxFans == -1) {
-					printToLog("[WARNING] Max fans was returned as -1. Canceling the racing process and doing something else.")
-					return false
-				}
-
-				// Get the index of the maximum fans or the one with the double predictions if available when force racing is enabled.
-				val index = if (!enableForceRacing) {
-					listOfFans.indexOf(maxFans)
-				} else {
-					// When force racing is enabled, prioritize races with double predictions.
-					val doublePredictionIndex = listOfRaces.indexOfFirst { it.hasDoublePredictions }
-					if (doublePredictionIndex != -1) {
-						printToLog("[RACE] Force racing enabled - selecting race with double predictions.")
-						doublePredictionIndex
-					} else {
-						// Fall back to the race with maximum fans if no double predictions found
-						printToLog("[RACE] Force racing enabled but no double predictions found - falling back to race with maximum fans.")
-						listOfFans.indexOf(maxFans)
-					}
-				}
-
-				printToLog("[RACE] Selecting the extra race at option #${index + 1}.")
-
-				// Select the extra race that matches the double star prediction and the most fan gain.
+			val doublePredictionLocations = imageUtils.findAll("race_extra_double_prediction")
+			if (doublePredictionLocations.size == 1) {
+				printToLog("[RACE] There is only one race with double predictions so selecting that one.")
 				tap(
-					extraRaceLocation[index].x - imageUtils.relWidth((100 * 1.36).toInt()),
-					extraRaceLocation[index].y - imageUtils.relHeight(70),
-					"race_extra_selection",
-					ignoreWaiting = true
-				)
-			} else if (extraRaceLocation.isNotEmpty()) {
-				// If no maximum is determined, select the very first extra race.
-				printToLog("[RACE] Selecting the first extra race on the list by default.")
-				tap(
-					extraRaceLocation[0].x - imageUtils.relWidth((100 * 1.36).toInt()),
-					extraRaceLocation[0].y - imageUtils.relHeight(70),
-					"race_extra_selection",
+					doublePredictionLocations[0].x,
+					doublePredictionLocations[0].y,
+					"race_extra_double_prediction",
 					ignoreWaiting = true
 				)
 			} else {
-				printToLog("[WARNING] No extra races detected and thus no fan maximums were calculated. Canceling the racing process and doing something else.")
-				return false
+				val (sourceBitmap, templateBitmap) = imageUtils.getBitmaps("race_extra_double_prediction")
+				val listOfRaces: ArrayList<ImageUtils.RaceDetails> = arrayListOf()
+				while (count < maxCount) {
+					// Save the location of the selected extra race.
+					val selectedExtraRace = imageUtils.findImage("race_extra_selection", region = imageUtils.regionBottomHalf).first
+					if (selectedExtraRace == null) {
+						printToLog("[ERROR] Unable to find the location of the selected extra race. Canceling the racing process and doing something else.", isError = true)
+						break
+					}
+					extraRaceLocation.add(selectedExtraRace)
+
+					// Determine its fan gain and save it.
+					val raceDetails: ImageUtils.RaceDetails = imageUtils.determineExtraRaceFans(extraRaceLocation[count], sourceBitmap, templateBitmap!!, forceRacing = enableForceRacing)
+					listOfRaces.add(raceDetails)
+					if (count == 0 && raceDetails.fans == -1) {
+						// If the fans were unable to be fetched or the race does not have double predictions for the first attempt, skip racing altogether.
+						listOfFans.add(raceDetails.fans)
+						break
+					}
+					listOfFans.add(raceDetails.fans)
+
+					// Select the next extra race.
+					if (count + 1 < maxCount) {
+						if (imageUtils.isTablet) {
+							tap(
+								imageUtils.relX(extraRaceLocation[count].x, (-100 * 1.36).toInt()).toDouble(),
+								imageUtils.relY(extraRaceLocation[count].y, (150 * 1.50).toInt()).toDouble(),
+								"race_extra_selection",
+								ignoreWaiting = true
+							)
+						} else {
+							tap(
+								imageUtils.relX(extraRaceLocation[count].x, -100).toDouble(),
+								imageUtils.relY(extraRaceLocation[count].y, 150).toDouble(),
+								"race_extra_selection",
+								ignoreWaiting = true
+							)
+						}
+					}
+
+					wait(0.5)
+
+					count++
+				}
+
+				val fansList = listOfRaces.joinToString(", ") { it.fans.toString() }
+				printToLog("[RACE] Number of fans detected for each extra race are: $fansList")
+
+				// Next determine the maximum fans and select the extra race.
+				val maxFans: Int? = listOfFans.maxOrNull()
+				if (maxFans != null) {
+					if (maxFans == -1) {
+						printToLog("[WARNING] Max fans was returned as -1. Canceling the racing process and doing something else.")
+						return false
+					}
+
+					// Get the index of the maximum fans or the one with the double predictions if available when force racing is enabled.
+					val index = if (!enableForceRacing) {
+						listOfFans.indexOf(maxFans)
+					} else {
+						// When force racing is enabled, prioritize races with double predictions.
+						val doublePredictionIndex = listOfRaces.indexOfFirst { it.hasDoublePredictions }
+						if (doublePredictionIndex != -1) {
+							printToLog("[RACE] Force racing enabled - selecting race with double predictions.")
+							doublePredictionIndex
+						} else {
+							// Fall back to the race with maximum fans if no double predictions found
+							printToLog("[RACE] Force racing enabled but no double predictions found - falling back to race with maximum fans.")
+							listOfFans.indexOf(maxFans)
+						}
+					}
+
+					printToLog("[RACE] Selecting the extra race at option #${index + 1}.")
+
+					// Select the extra race that matches the double star prediction and the most fan gain.
+					tap(
+						extraRaceLocation[index].x - imageUtils.relWidth((100 * 1.36).toInt()),
+						extraRaceLocation[index].y - imageUtils.relHeight(70),
+						"race_extra_selection",
+						ignoreWaiting = true
+					)
+				} else if (extraRaceLocation.isNotEmpty()) {
+					// If no maximum is determined, select the very first extra race.
+					printToLog("[RACE] Selecting the first extra race on the list by default.")
+					tap(
+						extraRaceLocation[0].x - imageUtils.relWidth((100 * 1.36).toInt()),
+						extraRaceLocation[0].y - imageUtils.relHeight(70),
+						"race_extra_selection",
+						ignoreWaiting = true
+					)
+				} else {
+					printToLog("[WARNING] No extra races detected and thus no fan maximums were calculated. Canceling the racing process and doing something else.")
+					return false
+				}
 			}
 
 			// Confirm the selection and the resultant popup and then wait for the game to load.
