@@ -1,18 +1,18 @@
 <AppUpdater>
   <update>
-    <latestVersion>3.0.1</latestVersion>
+    <latestVersion>3.0.2</latestVersion>
     <url>https://github.com/steve1316/uma-android-automation/releases</url>
     <releaseNotes>
-v3.0.1 - Changelog
+v3.0.2 - Changelog
 
 Adjustments
 ---
-- Update description of the blacklist setting to note that it is ignored during Junior Year
+- Simplified condition to not score on trainings for stats that are maxed or would be maxed
 
 Fixed
 ---
-- Fix typo in Settings that the Spark Target setting defaults to being disabled
-- Fix concurrent modification crashes during the Training process from multithreading
+- Fix OCR detection of maxed out stats (1200 versus MAX)
+- Add additional Bitmap safety checks for people on non-1080p displays
 
     </releaseNotes>
   </update>
