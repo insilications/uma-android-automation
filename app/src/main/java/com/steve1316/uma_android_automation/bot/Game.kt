@@ -999,10 +999,11 @@ class Game(val myContext: Context) {
 		fun scoreStatTraining(training: Training): Double {
 			if (training.name in blacklist) return 0.0
 
-			if (disableTrainingOnMaxedStat && training.statGains.withIndex().any { (i, gain) ->
-					val statName = statPrioritization.getOrNull(i) ?: return@any false
-					currentStatsMap.getOrDefault(statName, 0) + gain >= currentStatCap
-				}) return 0.0
+			// Don't score for stats that are maxed or would be maxed.
+			if ((disableTrainingOnMaxedStat && currentStatsMap[training.name]!! >= currentStatCap) ||
+				(currentStatsMap.getOrDefault(training.name, 0) + training.statGains[trainings.indexOf(training.name)] >= currentStatCap)) {
+				return 0.0
+			}
 
 			printToLog("\n[TRAINING] Starting scoring for ${training.name} Training.")
 
