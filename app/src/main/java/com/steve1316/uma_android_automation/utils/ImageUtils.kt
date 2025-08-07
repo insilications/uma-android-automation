@@ -1602,12 +1602,17 @@ class ImageUtils(context: Context, private val game: Game) {
 				cvImage.release()
 
 				game.printToLog("[INFO] Detected number of stats for $statName from Tesseract before formatting: $result", tag = tag)
-				try {
-					Log.d(tag, "Converting $result to integer for $statName stat value")
-					val cleanedResult = result.replace(Regex("[^0-9]"), "")
-					statValueMapping[statName] = cleanedResult.toInt()
-				} catch (_: NumberFormatException) {
-					statValueMapping[statName] = -1
+				if (result.lowercase().contains("max") || result.lowercase().contains("ax")) {
+					game.printToLog("[INFO] $statName seems to be maxed out. Setting it to 1200.", tag = tag)
+					statValueMapping[statName] = 1200
+				} else {
+					try {
+						Log.d(tag, "Converting $result to integer for $statName stat value")
+						val cleanedResult = result.replace(Regex("[^0-9]"), "")
+						statValueMapping[statName] = cleanedResult.toInt()
+					} catch (_: NumberFormatException) {
+						statValueMapping[statName] = -1
+					}
 				}
 			}
 		} else {
