@@ -217,12 +217,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			val width = region[2].coerceAtMost(sourceBitmap.width - x)
 			val height = region[3].coerceAtMost(sourceBitmap.height - y)
 
-			if (width > 0 && height > 0) {
-				Bitmap.createBitmap(sourceBitmap, x, y, width, height)
-			} else {
-				game.printToLog("[ERROR] Invalid region bounds for $templateName: region=$region, bitmap=${sourceBitmap.width}x${sourceBitmap.height}", tag = tag, isError = true)
-				sourceBitmap
-			}
+			createSafeBitmap(sourceBitmap, x, y, width, height, "match region crop") ?: sourceBitmap
 		} else {
 			sourceBitmap
 		}
@@ -393,12 +388,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			val width = region[2].coerceAtMost(sourceBitmap.width - x)
 			val height = region[3].coerceAtMost(sourceBitmap.height - y)
 
-			if (width > 0 && height > 0) {
-				Bitmap.createBitmap(sourceBitmap, x, y, width, height)
-			} else {
-				game.printToLog("[ERROR] Invalid region bounds: region=$region, bitmap=${sourceBitmap.width}x${sourceBitmap.height}", tag = tag, isError = true)
-				sourceBitmap
-			}
+			createSafeBitmap(sourceBitmap, x, y, width, height, "matchAll region crop") ?: sourceBitmap
 		} else {
 			sourceBitmap
 		}
@@ -704,6 +694,40 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
+	 * Safely creates a bitmap with bounds checking to prevent IllegalArgumentException.
+	 * Clamps individual dimensions to source bitmap bounds if they exceed limits.
+	 *
+	 * @param sourceBitmap The source bitmap to crop from.
+	 * @param x The x coordinate for the crop.
+	 * @param y The y coordinate for the crop.
+	 * @param width The width of the crop.
+	 * @param height The height of the crop.
+	 * @param context String describing the context for error logging.
+	 * @return The cropped bitmap or null if bounds are still invalid after clamping.
+	 */
+	private fun createSafeBitmap(sourceBitmap: Bitmap, x: Int, y: Int, width: Int, height: Int, context: String): Bitmap? {
+		// Clamp individual dimensions to source bitmap bounds.
+		val clampedX = x.coerceIn(0, sourceBitmap.width)
+		val clampedY = y.coerceIn(0, sourceBitmap.height)
+		val clampedWidth = width.coerceIn(1, sourceBitmap.width - clampedX)
+		val clampedHeight = height.coerceIn(1, sourceBitmap.height - clampedY)
+
+		// Check if any dimensions were clamped and log a warning.
+		if (x != clampedX || y != clampedY || width != clampedWidth || height != clampedHeight) {
+			game.printToLog("[WARNING] Clamped bounds for $context: original(x=$x, y=$y, width=$width, height=$height) -> clamped(x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight), sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}", tag = tag)
+		}
+
+		// Final validation to ensure the clamped dimensions are still valid.
+		if (clampedX < 0 || clampedY < 0 || clampedWidth <= 0 || clampedHeight <= 0 ||
+			clampedX + clampedWidth > sourceBitmap.width || clampedY + clampedHeight > sourceBitmap.height) {
+			game.printToLog("[ERROR] Invalid bounds for $context after clamping: x=$clampedX, y=$clampedY, width=$clampedWidth, height=$clampedHeight, sourceBitmap=${sourceBitmap.width}x${sourceBitmap.height}", tag = tag, isError = true)
+			return null
+		}
+
+		return Bitmap.createBitmap(sourceBitmap, clampedX, clampedY, clampedWidth, clampedHeight)
+	}
+
+	/**
 	 * Finds the location of the specified image from the /images/ folder inside assets.
 	 *
 	 * @param templateName File name of the template image.
@@ -915,14 +939,18 @@ class ImageUtils(context: Context, private val game: Game) {
 		// Use the match location acquired from finding the energy text image and acquire the (x, y) coordinates of the event title container right below the location of the energy text image.
 		val newX: Int
 		val newY: Int
-		var croppedBitmap: Bitmap = if (isTablet) {
+		var croppedBitmap: Bitmap? = if (isTablet) {
 			newX = max(0, matchLocation.x.toInt() - relWidth(250))
 			newY = max(0, matchLocation.y.toInt() + relHeight(154))
-			Bitmap.createBitmap(sourceBitmap, newX, newY, relWidth(746), relHeight(85))
+			createSafeBitmap(sourceBitmap, newX, newY, relWidth(746), relHeight(85), "findText tablet crop")
 		} else {
 			newX = max(0, matchLocation.x.toInt() - relWidth(125))
 			newY = max(0, matchLocation.y.toInt() + relHeight(116))
-			Bitmap.createBitmap(sourceBitmap, newX, newY, relWidth(645), relHeight(65))
+			createSafeBitmap(sourceBitmap, newX, newY, relWidth(645), relHeight(65), "findText phone crop")
+		}
+		if (croppedBitmap == null) {
+			game.printToLog("[ERROR] Failed to create cropped bitmap for text detection", tag = tag, isError = true)
+			return "empty!"
 		}
 
 		val tempImage = Mat()
@@ -933,7 +961,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		val (shiftMatch, _) = match(croppedBitmap, templateBitmap!!, "shift")
 		croppedBitmap = if (shiftMatch) {
 			Log.d(tag, "Shifting the region over by 70 pixels!")
-			Bitmap.createBitmap(sourceBitmap, relX(newX.toDouble(), 70), newY, 645 - 70, 65)
+			createSafeBitmap(sourceBitmap, relX(newX.toDouble(), 70), newY, 645 - 70, 65, "findText shifted crop") ?: croppedBitmap
 		} else {
 			Log.d(tag, "Do not need to shift.")
 			croppedBitmap
@@ -998,10 +1026,14 @@ class ImageUtils(context: Context, private val game: Game) {
 			return -1
 		}
 
-		val croppedBitmap: Bitmap = if (isTablet) {
-			Bitmap.createBitmap(sourceBitmap!!, relX(trainingSelectionLocation.x, -65), relY(trainingSelectionLocation.y, 23), relWidth(130), relHeight(50))
+		val croppedBitmap: Bitmap? = if (isTablet) {
+			createSafeBitmap(sourceBitmap!!, relX(trainingSelectionLocation.x, -65), relY(trainingSelectionLocation.y, 23), relWidth(130), relHeight(50), "findTrainingFailureChance tablet")
 		} else {
-			Bitmap.createBitmap(sourceBitmap!!, relX(trainingSelectionLocation.x, -45), relY(trainingSelectionLocation.y, 15), relWidth(100), relHeight(37))
+			createSafeBitmap(sourceBitmap!!, relX(trainingSelectionLocation.x, -45), relY(trainingSelectionLocation.y, 15), relWidth(100), relHeight(37), "findTrainingFailureChance phone")
+		}
+		if (croppedBitmap == null) {
+			game.printToLog("[ERROR] Failed to create cropped bitmap for training failure chance detection.", tag = tag, isError = true)
+			return -1
 		}
 
 		val resizedBitmap = croppedBitmap.scale(croppedBitmap.width * 2, croppedBitmap.height * 2)
@@ -1091,18 +1123,22 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		if (energyTextLocation != null) {
 			// Crop the source screenshot to only contain the day number.
-			val croppedBitmap: Bitmap = if (campaign == "Ao Haru") {
+			val croppedBitmap: Bitmap? = if (campaign == "Ao Haru") {
 				if (isTablet) {
-					Bitmap.createBitmap(sourceBitmap, relX(energyTextLocation.x, -(260 * 1.32).toInt()), relY(energyTextLocation.y, -(140 * 1.32).toInt()), relWidth(135), relHeight(100))
+					createSafeBitmap(sourceBitmap, relX(energyTextLocation.x, -(260 * 1.32).toInt()), relY(energyTextLocation.y, -(140 * 1.32).toInt()), relWidth(135), relHeight(100), "determineDayForExtraRace Ao Haru tablet")
 				} else {
-					Bitmap.createBitmap(sourceBitmap, relX(energyTextLocation.x, -260), relY(energyTextLocation.y, -140), relWidth(105), relHeight(75))
+					createSafeBitmap(sourceBitmap, relX(energyTextLocation.x, -260), relY(energyTextLocation.y, -140), relWidth(105), relHeight(75), "determineDayForExtraRace Ao Haru phone")
 				}
 			} else {
 				if (isTablet) {
-					Bitmap.createBitmap(sourceBitmap, relX(energyTextLocation.x, -(246 * 1.32).toInt()), relY(energyTextLocation.y, -(96 * 1.32).toInt()), relWidth(175), relHeight(116))
+					createSafeBitmap(sourceBitmap, relX(energyTextLocation.x, -(246 * 1.32).toInt()), relY(energyTextLocation.y, -(96 * 1.32).toInt()), relWidth(175), relHeight(116), "determineDayForExtraRace default tablet")
 				} else {
-					Bitmap.createBitmap(sourceBitmap, relX(energyTextLocation.x, -246), relY(energyTextLocation.y, -100), relWidth(140), relHeight(95))
+					createSafeBitmap(sourceBitmap, relX(energyTextLocation.x, -246), relY(energyTextLocation.y, -100), relWidth(140), relHeight(95), "determineDayForExtraRace default phone")
 				}
+			}
+			if (croppedBitmap == null) {
+				game.printToLog("[ERROR] Failed to create cropped bitmap for day detection.", tag = tag, isError = true)
+				return -1
 			}
 
 			val resizedBitmap = croppedBitmap.scale(croppedBitmap.width * 2, croppedBitmap.height * 2)
@@ -1194,10 +1230,15 @@ class ImageUtils(context: Context, private val game: Game) {
 	fun determineExtraRaceFans(extraRaceLocation: Point, sourceBitmap: Bitmap, doubleStarPredictionBitmap: Bitmap, forceRacing: Boolean = false): RaceDetails {
 		// Crop the source screenshot to show only the fan amount and the predictions.
 		val croppedBitmap = if (isTablet) {
-			Bitmap.createBitmap(sourceBitmap, relX(extraRaceLocation.x, -(173 * 1.34).toInt()), relY(extraRaceLocation.y, -(106 * 1.34).toInt()), relWidth(220), relHeight(125))
+			createSafeBitmap(sourceBitmap, relX(extraRaceLocation.x, -(173 * 1.34).toInt()), relY(extraRaceLocation.y, -(106 * 1.34).toInt()), relWidth(220), relHeight(125), "determineExtraRaceFans prediction tablet")
 		} else {
-			Bitmap.createBitmap(sourceBitmap, relX(extraRaceLocation.x, -173), relY(extraRaceLocation.y, -106), relWidth(163), relHeight(96))
+			createSafeBitmap(sourceBitmap, relX(extraRaceLocation.x, -173), relY(extraRaceLocation.y, -106), relWidth(163), relHeight(96), "determineExtraRaceFans prediction phone")
 		}
+		if (croppedBitmap == null) {
+			game.printToLog("[ERROR] Failed to create cropped bitmap for extra race prediction detection.", tag = tag, isError = true)
+			return RaceDetails(-1, false)
+		}
+
 		val cvImage = Mat()
 		Utils.bitmapToMat(croppedBitmap, cvImage)
 		if (debugMode) Imgcodecs.imwrite("$matchFilePath/debugExtraRacePrediction.png", cvImage)
@@ -1211,9 +1252,13 @@ class ImageUtils(context: Context, private val game: Game) {
 
 			// Crop the source screenshot to show only the fans.
 			val croppedBitmap2 = if (isTablet) {
-				Bitmap.createBitmap(sourceBitmap, relX(extraRaceLocation.x, -(625 * 1.40).toInt()), relY(extraRaceLocation.y, -(75 * 1.34).toInt()), relWidth(320), relHeight(45))
+				createSafeBitmap(sourceBitmap, relX(extraRaceLocation.x, -(625 * 1.40).toInt()), relY(extraRaceLocation.y, -(75 * 1.34).toInt()), relWidth(320), relHeight(45), "determineExtraRaceFans fans tablet")
 			} else {
-				Bitmap.createBitmap(sourceBitmap, relX(extraRaceLocation.x, -625), relY(extraRaceLocation.y, -75), relWidth(250), relHeight(35))
+				createSafeBitmap(sourceBitmap, relX(extraRaceLocation.x, -625), relY(extraRaceLocation.y, -75), relWidth(250), relHeight(35), "determineExtraRaceFans fans phone")
+			}
+			if (croppedBitmap2 == null) {
+				game.printToLog("[ERROR] Failed to create cropped bitmap for extra race fans detection.", tag = tag, isError = true)
+				return RaceDetails(-1, predictionCheck)
 			}
 
 			// Make the cropped screenshot grayscale.
@@ -1287,9 +1332,13 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		return if (skillPointLocation != null) {
 			val croppedBitmap = if (isTablet) {
-				Bitmap.createBitmap(sourceBitmap, relX(skillPointLocation.x, -75), relY(skillPointLocation.y, 45), relWidth(150), relHeight(70))
+				createSafeBitmap(sourceBitmap, relX(skillPointLocation.x, -75), relY(skillPointLocation.y, 45), relWidth(150), relHeight(70), "determineSkillPoints tablet")
 			} else {
-				Bitmap.createBitmap(sourceBitmap, relX(skillPointLocation.x, -70), relY(skillPointLocation.y, 28), relWidth(135), relHeight(70))
+				createSafeBitmap(sourceBitmap, relX(skillPointLocation.x, -70), relY(skillPointLocation.y, 28), relWidth(135), relHeight(70), "determineSkillPoints phone")
+			}
+			if (croppedBitmap == null) {
+				game.printToLog("[ERROR] Failed to create cropped bitmap for skill points detection.", tag = tag, isError = true)
+				return -1
 			}
 
 			// Make the cropped screenshot grayscale.
@@ -1428,7 +1477,12 @@ class ImageUtils(context: Context, private val game: Game) {
 		for ((index, statBlock) in allStatBlocks.withIndex()) {
 			if (debugMode) game.printToLog("[DEBUG] Processing stat block #${index + 1} at position: (${statBlock.x}, ${statBlock.y})", tag = tag)
 
-			val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(statBlock.x, -9), relY(statBlock.y, 107), 111, 13)
+			val croppedBitmap = createSafeBitmap(sourceBitmap, relX(statBlock.x, -9), relY(statBlock.y, 107), 111, 13, "analyzeRelationshipBars stat block ${index + 1}")
+			if (croppedBitmap == null) {
+				game.printToLog("[ERROR] Failed to create cropped bitmap for stat block #${index + 1}.", tag = tag, isError = true)
+				continue
+			}
+
 			val (isMaxed, _) = match(croppedBitmap, maxedTemplateBitmap!!, "stat_maxed")
 			if (isMaxed) {
 				// Skip if the relationship bar is already maxed.
@@ -1518,7 +1572,11 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		for (i in 0 until 4) {
 			val distance = distances[i]
-			val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(distanceLocation.x, 108 + (i * 190)), relY(distanceLocation.y, -25), 176, 52)
+			val croppedBitmap = createSafeBitmap(sourceBitmap, relX(distanceLocation.x, 108 + (i * 190)), relY(distanceLocation.y, -25), 176, 52, "determinePreferredDistance distance $distance")
+			if (croppedBitmap == null) {
+				game.printToLog("[ERROR] Failed to create cropped bitmap for distance $distance.", tag = tag, isError = true)
+				continue
+			}
 
 			when {
 				match(croppedBitmap, statAptitudeSTemplate!!, "stat_aptitude_S").first -> {
@@ -1556,25 +1614,20 @@ class ImageUtils(context: Context, private val game: Game) {
 			// Process all stats at once using the mapping
 			statValueMapping.forEach { (statName, _) ->
 				val croppedBitmap = when (statName) {
-					"Speed" -> {
-						Bitmap.createBitmap(sourceBitmap, relX(skillPointsLocation.x, -862), relY(skillPointsLocation.y, 25), relWidth(98), relHeight(42))
-					}
-					"Stamina" -> {
-						Bitmap.createBitmap(sourceBitmap, relX(skillPointsLocation.x, -862 + 170), relY(skillPointsLocation.y, 25), relWidth(98), relHeight(42))
-					}
-					"Power" -> {
-						Bitmap.createBitmap(sourceBitmap, relX(skillPointsLocation.x, -862 + 170*2), relY(skillPointsLocation.y, 25), relWidth(98), relHeight(42))
-					}
-					"Guts" -> {
-						Bitmap.createBitmap(sourceBitmap, relX(skillPointsLocation.x, -862 + 170*3), relY(skillPointsLocation.y, 25), relWidth(98), relHeight(42))
-					}
-					"Wit" -> {
-						Bitmap.createBitmap(sourceBitmap, relX(skillPointsLocation.x, -862 + 170*4), relY(skillPointsLocation.y, 25), relWidth(98), relHeight(42))
-					}
+					"Speed" -> createSafeBitmap(sourceBitmap, relX(skillPointsLocation.x, -862), relY(skillPointsLocation.y, 25), relWidth(98), relHeight(42), "determineStatValues Speed stat")
+					"Stamina" -> createSafeBitmap(sourceBitmap, relX(skillPointsLocation.x, -862 + 170), relY(skillPointsLocation.y, 25), relWidth(98), relHeight(42), "determineStatValues Stamina stat")
+					"Power" -> createSafeBitmap(sourceBitmap, relX(skillPointsLocation.x, -862 + 170*2), relY(skillPointsLocation.y, 25), relWidth(98), relHeight(42), "determineStatValues Power stat")
+					"Guts" -> createSafeBitmap(sourceBitmap, relX(skillPointsLocation.x, -862 + 170*3), relY(skillPointsLocation.y, 25), relWidth(98), relHeight(42), "determineStatValues Guts stat")
+					"Wit" -> createSafeBitmap(sourceBitmap, relX(skillPointsLocation.x, -862 + 170*4), relY(skillPointsLocation.y, 25), relWidth(98), relHeight(42), "determineStatValues Wit stat")
 					else -> {
 						game.printToLog("[ERROR] determineStatValue() received an incorrect stat name of $statName.", tag = tag, isError = true)
 						return@forEach
 					}
+				}
+				if (croppedBitmap == null) {
+					game.printToLog("[ERROR] Failed to create cropped bitmap for reading $statName stat value.", tag = tag, isError = true)
+					statValueMapping[statName] = -1
+					return@forEach
 				}
 
 				// Make the cropped screenshot grayscale.
@@ -1631,7 +1684,11 @@ class ImageUtils(context: Context, private val game: Game) {
 		val (energyLocation, sourceBitmap) = findImage("energy")
 		var result = ""
 		if (energyLocation != null) {
-			val croppedBitmap = Bitmap.createBitmap(sourceBitmap, relX(energyLocation.x, -268), relY(energyLocation.y, -180), relWidth(308), relHeight(35))
+			val croppedBitmap = createSafeBitmap(sourceBitmap, relX(energyLocation.x, -268), relY(energyLocation.y, -180), relWidth(308), relHeight(35), "determineDayNumber")
+			if (croppedBitmap == null) {
+				game.printToLog("[ERROR] Failed to create cropped bitmap for day number detection.", tag = tag, isError = true)
+				return ""
+			}
 
 			// Make the cropped screenshot grayscale.
 			val cvImage = Mat()
@@ -1789,7 +1846,13 @@ class ImageUtils(context: Context, private val game: Game) {
 					try {
 						val statName = statNames[i]
 						val xOffset = -934 + (i * 180)
-						val croppedBitmap = Bitmap.createBitmap(sourceBitmap!!, relX(skillPointsLocation.x, xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82))
+						val croppedBitmap = createSafeBitmap(sourceBitmap!!, relX(skillPointsLocation.x, xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82), "determineStatGainFromTraining $statName")
+						if (croppedBitmap == null) {
+							game.printToLog("[ERROR] Failed to create cropped bitmap for $statName stat gain detection.", tag = tag, isError = true)
+							threadSafeResults[i] = 0
+							statLatch.countDown()
+							return@Thread
+						}
 
 						// Convert to Mat and then turn it to grayscale.
 						val sourceMat = Mat()
