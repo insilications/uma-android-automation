@@ -61,6 +61,19 @@ This project is purely for educational purposes to learn about Android automatio
 4. Filter the logs by typing `package:com.steve1316.uma_android_automation [UAA]` or just `[UAA]` in the search box to see only the logs from this app.
 5. Run the app - you'll now see all of its logs appear in real-time as it runs.
 
+## To set the phone's resolution to 1080p (faster and more accurate)
+
+**NOTE:** this only works when downscaling. If your device official resolution is lower than 1080p it will most likely not work.
+1. Connect your Android device to your computer as explained above.
+2. Use `adb shell` to send the following commands:
+   - **Change resolution to 1080p:** `wm size 1080x1920 && wm density 240`
+   - **Revert changes:** `wm size reset && wm density reset`
+3. (Optional) Send the adb commands directly from your Android device, without a computer.
+   - Install the [**aShell You**](https://github.com/DP-Hridayan/aShellYou) app . This allows you to run adb commands locally, but requires [**Shizuku**](https://github.com/RikkaApps/Shizuku).
+   - Install [**Shizuku**](https://github.com/RikkaApps/Shizuku), then start it by following [these instructions](https://shizuku.rikka.app/guide/setup/#start-via-wireless-debugging).
+   - With **Shizuku** started, you can then use **aShell You** to send the adb commands above directly from your device. You can also bookmark the commands for your own convenience. 
+
+
 # For Developers
 
 1. Download and extract the project repository.
