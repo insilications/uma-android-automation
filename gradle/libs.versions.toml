@@ -1,0 +1,58 @@
+[versions]
+# The Android Studio warning about these not being used in any build scripts is wrong and can be ignored.
+# https://issuetracker.google.com/issues/343889864
+app-compileSdk = "36"
+app-buildToolsVersion = "36.0.0"
+app-minSdk = "24"
+#noinspection ExpiredTargetSdkVersion
+app-targetSdk = "30"
+app-versionCode = "26"
+app-versionName = "3.0.2"
+app-jvm-toolchain = "17"
+
+
+androidGradleBuildTools = "8.12.0"
+kotlinGradlePlugin = "2.2.0"
+androidMaterial = "1.12.0"
+androidx-core = "1.16.0"
+androidx-appcompat = "1.7.1"
+androidx-preference = "1.2.1"
+androidx-constraintlayout = "2.2.1"
+androidx-lifecycle = "2.9.2"
+androidx-navigation = "2.9.3"
+tesseract4android = "4.9.0"
+stringSimiliarity = "1.0.0"
+klaxon = "5.6"
+mlkitTextRecognition = "19.0.1"
+opencv = "4.12.0"
+appUpdater = "2.7"
+
+[libraries]
+androidGradleBuildTools = { group = "com.android.tools.build", name = "gradle", version.ref = "androidGradleBuildTools" }
+kotlinGradlePlugin = { group = "org.jetbrains.kotlin", name = "kotlin-gradle-plugin", version.ref = "kotlinGradlePlugin" }
+androidMaterial = { group = "com.google.android.material", name = "material", version.ref = "androidMaterial" }
+androidx-core = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "androidx-appcompat" }
+androidx-preference = { group = "androidx.preference", name = "preference-ktx", version.ref = "androidx-preference" }
+androidx-constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayout", version.ref = "androidx-constraintlayout" }
+androidx-lifecycle-livedata = { group = "androidx.lifecycle", name = "lifecycle-livedata-ktx", version.ref = "androidx-lifecycle" }
+androidx-lifecycle-viewmodel = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "androidx-lifecycle" }
+androidx-navigation-fragment = { group = "androidx.navigation", name = "navigation-fragment-ktx", version.ref = "androidx-navigation" }
+androidx-navigation-ui = { group = "androidx.navigation", name = "navigation-ui-ktx", version.ref = "androidx-navigation" }
+tesseract4android = { group = "cz.adaptech.tesseract4android", name = "tesseract4android", version.ref = "tesseract4android" }
+stringSimilarity = { group = "net.ricecode", name = "string-similarity", version.ref = "stringSimiliarity"}
+klaxon = { group = "com.beust", name = "klaxon", version.ref = "klaxon" }
+mlkitTextRecognition = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition", version.ref = "mlkitTextRecognition"}
+appUpdater = { group = "com.github.javiersantos", name = "AppUpdater", version.ref = "appUpdater" }
+opencv = { group = "org.opencv", name = "opencv", version.ref = "opencv" }
+
+[bundles]
+androidApp = [
+    "androidMaterial", "androidx-core", "androidx-appcompat",
+    "androidx-preference", "androidx-constraintlayout",
+    "androidx-lifecycle-livedata", "androidx-lifecycle-viewmodel",
+    "androidx-navigation-fragment", "androidx-navigation-ui"
+]
+
+[plugins]
+foojayJDKResolver = { id = "org.gradle.toolchains.foojay-resolver-convention", version = "1.0.0" }
