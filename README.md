@@ -64,14 +64,15 @@ This project is purely for educational purposes to learn about Android automatio
 ## To set the phone's resolution to 1080p (faster and more accurate)
 
 **NOTE:** this only works when downscaling. If your device official resolution is lower than 1080p it will most likely not work.
-1. Connect your Android device to your computer as explained above.
-2. Use `adb shell` to send the following commands:
+1. Install the [**aShell You**](https://github.com/DP-Hridayan/aShellYou) app. This allows you to run adb commands locally, but requires [**Shizuku**](https://github.com/RikkaApps/Shizuku).
+2. Install [**Shizuku**](https://github.com/RikkaApps/Shizuku), then start it by following [these instructions](https://shizuku.rikka.app/guide/setup/#start-via-wireless-debugging).
+3. With **Shizuku** started, you can then use **aShell You** to send the following adb commands:
    - **Change resolution to 1080p:** `wm size 1080x1920 && wm density 240`
    - **Revert changes:** `wm size reset && wm density reset`
-3. (Optional) Send the adb commands directly from your Android device, without a computer.
-   - Install the [**aShell You**](https://github.com/DP-Hridayan/aShellYou) app . This allows you to run adb commands locally, but requires [**Shizuku**](https://github.com/RikkaApps/Shizuku).
-   - Install [**Shizuku**](https://github.com/RikkaApps/Shizuku), then start it by following [these instructions](https://shizuku.rikka.app/guide/setup/#start-via-wireless-debugging).
-   - With **Shizuku** started, you can then use **aShell You** to send the adb commands above directly from your device. You can also bookmark the commands for your own convenience. 
+
+    You can also bookmark the commands for your own convenience.
+
+Make sure to use 1.0 scaling, as well as 80% confidence for best results in 1080p.
 
 
 # For Developers
