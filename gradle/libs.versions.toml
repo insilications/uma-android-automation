@@ -2,6 +2,7 @@
 app-compileSdk = "36"
 app-buildToolsVersion = "36.0.0"
 app-minSdk = "24"
+#noinspection ExpiredTargetSdkVersion
 app-targetSdk = "30"
 app-versionCode = "26"
 app-versionName = "3.0.2"
