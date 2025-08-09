@@ -64,7 +64,7 @@ This project is purely for educational purposes to learn about Android automatio
 ## To set the phone's resolution to 1080p (faster and more accurate)
 
 **NOTE:** this only works when downscaling. If your device official resolution is lower than 1080p it will most likely not work.
-1. Install the [**aShell You**](https://github.com/DP-Hridayan/aShellYou) app. This allows you to run adb commands locally, but requires [**Shizuku**](https://github.com/RikkaApps/Shizuku).
+1. Install the [**aShell You**](https://github.com/DP-Hridayan/aShellYou) app. This allows you to run adb commands locally on your Android device, but requires [**Shizuku**](https://github.com/RikkaApps/Shizuku).
 2. Install [**Shizuku**](https://github.com/RikkaApps/Shizuku), then start it by following [these instructions](https://shizuku.rikka.app/guide/setup/#start-via-wireless-debugging).
 3. With **Shizuku** started, you can then use **aShell You** to send the following adb commands:
    - **Change resolution to 1080p:** `wm size 1080x1920 && wm density 240`
@@ -72,8 +72,15 @@ This project is purely for educational purposes to learn about Android automatio
 
     You can also bookmark the commands for your own convenience.
 
-Make sure to use 1.0 scaling, as well as 80% confidence for best results in 1080p.
+Alternatively, you can do the same on a computer if you cannot get the above to work out.
+1. Install [**adb**](https://developer.android.com/tools/releases/platform-tools). You may need to restart your computer to have your terminal pick up the changes.
+2. Open up a new terminal anywhere (cmd, Powershell, etc).
+3. Plug in your Android device via USB. If all goes well, then executing `adb devices` will show your connected device. There may be a popup on your Android device beforehand asking you to give permission to connect to ADB. Wirelessly connecting to ADB is also available via the Android `Settings > Developer options > Wirelss debugging`
+4. Execute the following commands to forcibly set your display resolution to 1080p and DPI to 240:
+    - **Change resolution to 1080p:** `adb shell wm size 1080x1920 && wm density 240`
+    - **Revert changes:** `adb shell wm size reset && wm density reset`
 
+Make sure to use 1.0 scaling, as well as 80% confidence for best results in 1080p.
 
 # For Developers
 
