@@ -2060,8 +2060,23 @@ class ImageUtils(context: Context, private val game: Game) {
 					if (!failedPixelMatchRatio && !failedPixelCorrelation) {
 						val centerX = (x + xOffset) + (w / 2)
 						val centerY = y + (h / 2)
-						Log.d(tag, "[DEBUG] Found valid match for template \"$templateName\" at ($centerX, $centerY).")
-						matchResults[templateName]?.add(Point(centerX.toDouble(), centerY.toDouble()))
+
+						// Check for overlap with existing matches within 10 pixels on both axes.
+						val hasOverlap = matchResults.values.flatten().any { existingPoint ->
+							val existingX = existingPoint.x
+							val existingY = existingPoint.y
+
+							// Check if the new match overlaps with existing match within 10 pixels.
+							val xOverlap = kotlin.math.abs(centerX - existingX) < 10
+							val yOverlap = kotlin.math.abs(centerY - existingY) < 10
+
+							xOverlap && yOverlap
+						}
+
+						if (!hasOverlap) {
+							Log.d(tag, "[DEBUG] Found valid match for template \"$templateName\" at ($centerX, $centerY).")
+							matchResults[templateName]?.add(Point(centerX.toDouble(), centerY.toDouble()))
+						}
 					}
 
 					// Draw a box to prevent re-detection in the next loop iteration.
