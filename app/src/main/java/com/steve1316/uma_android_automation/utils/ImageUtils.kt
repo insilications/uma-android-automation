@@ -2080,7 +2080,7 @@ class ImageUtils(context: Context, private val game: Game) {
 					}
 
 					// Draw a box to prevent re-detection in the next loop iteration.
-					Imgproc.rectangle(searchMat, Point(x.toDouble(), y.toDouble()), Point((x + w).toDouble(), (y + h).toDouble()), Scalar(0.0, 0.0, 0.0), -1)
+					Imgproc.rectangle(searchMat, Point(x.toDouble(), y.toDouble()), Point((x + w).toDouble(), (y + h).toDouble()), Scalar(0.0, 0.0, 0.0), 10)
 
 					templateComparison.release()
 					matchedRegion.release()
