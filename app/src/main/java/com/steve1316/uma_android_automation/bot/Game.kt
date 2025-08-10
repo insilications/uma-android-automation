@@ -103,29 +103,30 @@ class Game(val myContext: Context) {
 		val name: String,
 		val statGains: IntArray,
 		val failureChance: Int,
-		val relationshipBars: ArrayList<ImageUtils.BarFillResult>,
-		val isRainbow: Boolean
+		val relationshipBars: ArrayList<ImageUtils.BarFillResult>
 	) {
-		override fun equals(other: Any?): Boolean {
-			if (this === other) return true
-			if (javaClass != other?.javaClass) return false
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
 
-			other as Training
+            other as Training
 
-			if (isRainbow != other.isRainbow) return false
-			if (name != other.name) return false
-			if (!statGains.contentEquals(other.statGains)) return false
+            if (failureChance != other.failureChance) return false
+            if (name != other.name) return false
+            if (!statGains.contentEquals(other.statGains)) return false
+            if (relationshipBars != other.relationshipBars) return false
 
-			return true
-		}
+            return true
+        }
 
-		override fun hashCode(): Int {
-			var result = isRainbow.hashCode()
-			result = 31 * result + name.hashCode()
-			result = 31 * result + statGains.contentHashCode()
-			return result
-		}
-	}
+        override fun hashCode(): Int {
+            var result = failureChance
+            result = 31 * result + name.hashCode()
+            result = 31 * result + statGains.contentHashCode()
+            result = 31 * result + relationshipBars.hashCode()
+            return result
+        }
+    }
 
 	data class Date(
 		val year: Int,
@@ -594,7 +595,7 @@ class Game(val myContext: Context) {
 	}
 
 	/**
-	 * Analyze all 5 Trainings for their details including stat gain, rainbows, etc.
+	 * Analyze all 5 Trainings for their details including stat gains, relationship bars, etc.
 	 *
 	 * @param test Flag that forces the failure chance through even if it is not in the acceptable range for testing purposes.
 	 */
@@ -737,8 +738,7 @@ class Game(val myContext: Context) {
 						name = training,
 						statGains = statGains,
 						failureChance = failureChance,
-						relationshipBars = relationshipBars,
-						isRainbow = imageUtils.findImage("training_rainbow", tries = 1, imageUtils.regionBottomHalf, suppressError = true).first != null
+						relationshipBars = relationshipBars
 					)
 					trainingMap.put(training, newTraining)
 				}
@@ -771,7 +771,7 @@ class Game(val myContext: Context) {
 	 * The scoring system considers multiple factors:
 	 * - **Stat Efficiency:** How well training helps achieve target stats for the preferred race distance
 	 * - **Relationship Building:** Value of friendship bar progress with diminishing returns
-	 * - **Context Bonuses:** Rainbow training bonuses, phase-specific bonuses, and stat gain thresholds
+	 * - **Context Bonuses:** Phase-specific bonuses and stat gain thresholds
 	 * - **Blacklist Compliance:** Excludes blacklisted training options
 	 * - **Stat Cap Respect:** Avoids training that would exceed stat caps when enabled
 	 *
@@ -789,7 +789,7 @@ class Game(val myContext: Context) {
 		 * @return A score representing relationship-building value.
 		 */
 		fun scoreFriendshipTraining(training: Training): Double {
-			// Ignore the blacklist and rainbow bonuses in favor of making sure we build up the relationship bars as fast as possible.
+			// Ignore the blacklist in favor of making sure we build up the relationship bars as fast as possible.
 			printToLog("\n[TRAINING] Starting process to score ${training.name} Training with a focus on building relationship bars.")
 
 			val barResults = training.relationshipBars
@@ -929,7 +929,6 @@ class Game(val myContext: Context) {
 		 * Calculates context-aware bonuses and penalties based on game phase and training properties.
 		 *
 		 * Applies various bonuses including:
-		 * - Rainbow training bonus (2x multiplier)
 		 * - Phase-specific bonuses (relationship focus in early game, stat efficiency in later years)
 		 * - Stat gain thresholds that provide additional bonuses
 		 *
@@ -940,11 +939,6 @@ class Game(val myContext: Context) {
 		fun calculateContextScore(training: Training): Double {
 			// Start with neutral score.
 			var score = 100.0
-
-			// Bonus for rainbow training.
-			if (training.isRainbow) {
-				score *= 5
-			}
 
 			// Bonuses for each game phase.
 			when {
@@ -986,7 +980,7 @@ class Game(val myContext: Context) {
 		 * This scoring system combines three main components:
 		 * - Stat efficiency (60-70% weight): How well the training helps achieve stat targets
 		 * - Relationship building (10% weight): Value of friendship bar progress
-		 * - Context bonuses (30% weight): Rainbow bonuses, phase-specific bonuses, etc.
+		 * - Context bonuses (30% weight): Phase-specific bonuses, etc.
 		 *
 		 * The weighting changes based on whether relationship bars are present:
 		 * - With relationship bars: 60% stat, 10% relationship, 30% context
@@ -1871,7 +1865,7 @@ class Game(val myContext: Context) {
 	private fun printTrainingMap() {
 		printToLog("\n[INFO] Stat Gains by Training:")
 		trainingMap.forEach { name, training ->
-			printToLog("[TRAINING] $name Training stat gains: ${training.statGains.contentToString()}, failure chance: ${training.failureChance}%, is rainbow training: ${training.isRainbow}.")
+			printToLog("[TRAINING] $name Training stat gains: ${training.statGains.contentToString()}, failure chance: ${training.failureChance}%.")
 		}
 	}
 
