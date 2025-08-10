@@ -1032,7 +1032,11 @@ class Game(val myContext: Context) {
 				maxPossibleScore += 100.0 * 0.3
 			}
 
-			printToLog("[TRAINING] Scores | Stat Efficiency: ${decimalFormat.format(statScore)}, Relationship: ${decimalFormat.format(relationshipScore)}, Context: ${decimalFormat.format(contextScore)}")
+			printToLog(
+				"[TRAINING] Scores | Current Stat: ${currentStatsMap[training.name]}, Target Stat: ${target[trainings.indexOf(training.name)]}, " +
+					"Stat Efficiency: ${decimalFormat.format(statScore)}, Relationship: ${decimalFormat.format(relationshipScore)}, " +
+					"Context: ${decimalFormat.format(contextScore)}"
+			)
 
 			// Normalize the score.
 			val normalizedScore = (totalScore / maxPossibleScore * 100.0).coerceIn(1.0, 1000.0)
