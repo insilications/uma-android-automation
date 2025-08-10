@@ -694,7 +694,7 @@ class Game(val myContext: Context) {
 					// Thread 1: Determine stat gains.
 					Thread {
 						try {
-							statGains = imageUtils.determineStatGainFromTraining(sourceBitmap, skillPointsLocation!!)
+							statGains = imageUtils.determineStatGainFromTraining(training, sourceBitmap, skillPointsLocation!!)
 						} catch (e: Exception) {
 							printToLog("[ERROR] Error in determineStatGainFromTraining: ${e.stackTraceToString()}", isError = true)
 							statGains = intArrayOf(0, 0, 0, 0, 0)

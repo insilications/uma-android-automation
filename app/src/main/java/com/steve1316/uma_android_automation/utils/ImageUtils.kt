@@ -1813,14 +1813,23 @@ class ImageUtils(context: Context, private val game: Game) {
 	 * symbol, then constructs the final integer value by analyzing the spatial arrangement
 	 * of detected matches.
 	 *
+	 * @param trainingName Name of the currently selected training to determine which stats to read.
 	 * @param sourceBitmap Bitmap of the source image separately taken. Defaults to null.
 	 * @param skillPointsLocation Point location of the template image separately taken. Defaults to null.
 	 *
 	 * @return Array of 5 detected stat gain values as integers, or -1 for failed detections.
 	 */
-	fun determineStatGainFromTraining(sourceBitmap: Bitmap? = null, skillPointsLocation: Point? = null): IntArray {
+	fun determineStatGainFromTraining(trainingName: String, sourceBitmap: Bitmap? = null, skillPointsLocation: Point? = null): IntArray {
 		val templates = listOf("+", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
 		val statNames = listOf("Speed", "Stamina", "Power", "Guts", "Wit")
+		// Define a mapping of training types to their stat indices
+		val trainingToStatIndices = mapOf(
+			"Speed" to listOf(0, 2),
+			"Stamina" to listOf(1, 3),
+			"Power" to listOf(1, 2),
+			"Guts" to listOf(0, 2, 3),
+			"Wit" to listOf(0, 4)
+		)
 
 		val (skillPointsLocation, sourceBitmap) = if (sourceBitmap == null && skillPointsLocation == null) {
 			findImage("skill_points")
@@ -1844,9 +1853,19 @@ class ImageUtils(context: Context, private val game: Game) {
 			for (i in 0 until 5) {
 				Thread {
 					try {
+						// Stop the Thread early if the selected Training would not offer stats for the stat to be checked.
+						// Speed gives Speed and Power
+						// Stamina gives Stamina and Guts
+						// Power gives Stamina and Power
+						// Guts gives Speed, Power and Guts
+						// Wits gives Speed and Wits
+						val validIndices = trainingToStatIndices[trainingName] ?: return@Thread
+						if (i !in validIndices) return@Thread
+
 						val statName = statNames[i]
-						val xOffset = -934 + (i * 180)
-						val croppedBitmap = createSafeBitmap(sourceBitmap!!, relX(skillPointsLocation.x, xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82), "determineStatGainFromTraining $statName")
+						val xOffset = i * 180 // All stats are evenly spaced at 180 pixel intervals.
+
+						val croppedBitmap = createSafeBitmap(sourceBitmap!!, relX(skillPointsLocation.x, -934 + xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82), "determineStatGainFromTraining $statName")
 						if (croppedBitmap == null) {
 							game.printToLog("[ERROR] Failed to create cropped bitmap for $statName stat gain detection.", tag = tag, isError = true)
 							threadSafeResults[i] = 0
