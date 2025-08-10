@@ -696,7 +696,7 @@ class Game(val myContext: Context) {
 						try {
 							statGains = imageUtils.determineStatGainFromTraining(sourceBitmap, skillPointsLocation!!)
 						} catch (e: Exception) {
-							printToLog("[ERROR] Error in determineStatGainFromTraining: ${e.message}", isError = true)
+							printToLog("[ERROR] Error in determineStatGainFromTraining: ${e.stackTraceToString()}", isError = true)
 							statGains = intArrayOf(0, 0, 0, 0, 0)
 						} finally {
 							latch.countDown()
@@ -708,7 +708,7 @@ class Game(val myContext: Context) {
 						try {
 							failureChance = imageUtils.findTrainingFailureChance(sourceBitmap, trainingSelectionLocation!!)
 						} catch (e: Exception) {
-							printToLog("[ERROR] Error in findTrainingFailureChance: ${e.message}", isError = true)
+							printToLog("[ERROR] Error in findTrainingFailureChance: ${e.stackTraceToString()}", isError = true)
 							failureChance = -1
 						} finally {
 							latch.countDown()
@@ -720,7 +720,7 @@ class Game(val myContext: Context) {
 						try {
 							relationshipBars = imageUtils.analyzeRelationshipBars(sourceBitmap)
 						} catch (e: Exception) {
-							printToLog("[ERROR] Error in analyzeRelationshipBars: ${e.message}", isError = true)
+							printToLog("[ERROR] Error in analyzeRelationshipBars: ${e.stackTraceToString()}", isError = true)
 							relationshipBars = arrayListOf()
 						} finally {
 							latch.countDown()

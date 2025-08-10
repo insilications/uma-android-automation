@@ -1915,7 +1915,7 @@ class ImageUtils(context: Context, private val game: Game) {
 						sourceGray.release()
 						workingMat.release()
 					} catch (e: Exception) {
-						game.printToLog("[ERROR] Error processing stat ${statNames[i]}: ${e.message}", tag = tag, isError = true)
+						game.printToLog("[ERROR] Error processing stat ${statNames[i]}: ${e.stackTraceToString()}", tag = tag, isError = true)
 						threadSafeResults[i] = 0
 					} finally {
 						statLatch.countDown()
@@ -2167,7 +2167,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			if (debugMode) game.printToLog("[DEBUG] Successfully constructed integer value: $result from \"$constructedString\".", tag = tag)
 			result
 		} catch (e: NumberFormatException) {
-			game.printToLog("[ERROR] Could not convert \"$constructedString\" to integer: ${e.message}", tag = tag, isError = true)
+			game.printToLog("[ERROR] Could not convert \"$constructedString\" to integer: ${e.stackTraceToString()}", tag = tag, isError = true)
 			0
 		}
 	}
