@@ -1954,9 +1954,9 @@ class ImageUtils(context: Context, private val game: Game) {
 	 */
 	private fun processStatGainTemplateWithTransparency(templateName: String, templateBitmap: Bitmap, workingMat: Mat, matchResults: MutableMap<String, MutableList<Point>>): MutableMap<String, MutableList<Point>> {
 		// These values have been tested for the best results against the dynamic background.
-		val matchConfidence = 0.8
+		val matchConfidence = 0.9
 		val minPixelMatchRatio = 0.1
-		val minPixelCorrelation = 0.8
+		val minPixelCorrelation = 0.85
 
 		// Convert template to Mat and then to grayscale.
 		val templateMat = Mat()
