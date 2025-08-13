@@ -1935,6 +1935,8 @@ class Game(val myContext: Context) {
 			printToLog("[INFO] There was a popup about insufficient fans.")
 			encounteredRacingPopup = true
 			findAndTapImage("cancel", region = imageUtils.regionBottomHalf)
+		} else if (findAndTapImage("back", tries = 1, region = imageUtils.regionBottomHalf, suppressError = true)) {
+			wait(1.0)
 		} else if (!BotService.isRunning) {
 			throw InterruptedException()
 		} else {
