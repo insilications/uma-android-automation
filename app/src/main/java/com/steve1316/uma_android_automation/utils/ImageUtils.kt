@@ -1353,26 +1353,59 @@ class ImageUtils(context: Context, private val game: Game) {
 			Imgproc.threshold(cvImage, bwImage, threshold.toDouble(), 255.0, Imgproc.THRESH_BINARY)
 			if (debugMode) Imgcodecs.imwrite("$matchFilePath/debugSkillPoints_afterThreshold.png", bwImage)
 
+			// Create a InputImage object for Google's ML OCR.
 			val resultBitmap = createBitmap(bwImage.cols(), bwImage.rows())
 			Utils.matToBitmap(bwImage, resultBitmap)
-			tessBaseAPI.setImage(resultBitmap)
+			val inputImage: InputImage = InputImage.fromBitmap(resultBitmap, 0)
 
-			// Set the Page Segmentation Mode to '--psm 7' or "Treat the image as a single text line" according to https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html#page-segmentation-method
-			tessBaseAPI.pageSegMode = TessBaseAPI.PageSegMode.PSM_SINGLE_LINE
+			// Use CountDownLatch to make the async operation synchronous.
+			var result = ""
+			val latch = CountDownLatch(1)
+			var mlkitFailed = false
 
-			var result = "empty!"
+			textRecognizer.process(inputImage)
+				.addOnSuccessListener { text ->
+					if (text.textBlocks.isNotEmpty()) {
+						for (block in text.textBlocks) {
+							game.printToLog("[INFO] Detected the number of skill points with Google ML Kit: ${block.text}", tag = tag)
+							result = block.text
+						}
+					}
+					latch.countDown()
+				}
+				.addOnFailureListener {
+					game.printToLog("[ERROR] Failed to do text detection via Google's ML Kit. Falling back to Tesseract.", tag = tag, isError = true)
+					mlkitFailed = true
+					latch.countDown()
+				}
+
+			// Wait for the async operation to complete.
 			try {
-				// Finally, detect text on the cropped region.
-				result = tessBaseAPI.utF8Text
-			} catch (e: Exception) {
-				game.printToLog("[ERROR] Cannot perform OCR with Tesseract: ${e.stackTraceToString()}", tag = tag, isError = true)
+				latch.await(5, TimeUnit.SECONDS)
+			} catch (_: InterruptedException) {
+				game.printToLog("[ERROR] Google ML Kit operation timed out", tag = tag, isError = true)
 			}
 
-			tessBaseAPI.clear()
+			if (mlkitFailed || result == "") {
+				tessBaseAPI.setImage(resultBitmap)
+
+				// Set the Page Segmentation Mode to '--psm 7' or "Treat the image as a single text line" according to https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html#page-segmentation-method
+				tessBaseAPI.pageSegMode = TessBaseAPI.PageSegMode.PSM_SINGLE_LINE
+
+				try {
+					// Finally, detect text on the cropped region.
+					result = tessBaseAPI.utF8Text
+				} catch (e: Exception) {
+					game.printToLog("[ERROR] Cannot perform OCR with Tesseract: ${e.stackTraceToString()}", tag = tag, isError = true)
+				}
+
+				tessBaseAPI.clear()
+			}
+
 			cvImage.release()
 			bwImage.release()
 
-			game.printToLog("[INFO] Detected number of skill points from Tesseract before formatting: $result", tag = tag)
+			game.printToLog("[INFO] Detected number of skill points before formatting: $result", tag = tag)
 			try {
 				Log.d(tag, "Converting $result to integer for skill points")
 				val cleanedResult = result.replace(Regex("[^0-9]"), "")
