@@ -1,18 +1,23 @@
 <AppUpdater>
   <update>
-    <latestVersion>3.0.2</latestVersion>
+    <latestVersion>3.0.3</latestVersion>
     <url>https://github.com/steve1316/uma-android-automation/releases</url>
     <releaseNotes>
-v3.0.2 - Changelog
+v3.0.3 - Changelog
 
 Adjustments
 ---
-- Simplified condition to not score on trainings for stats that are maxed or would be maxed
+- Removed rainbow detection during training analysis. It was too unreliable according to reports
+- Print error stack traces whenever possible
+- Adjust logging during training analysis
+- Increase minimum required match confidence and pixel correlation values during training analysis of stat gains
+- Add a bonus to priority weight during training analysis for the top 3 prioritized stats to prevent overriding large stat gains over the target stat
+- Slight speed up of training analysis
 
 Fixed
 ---
-- Fix OCR detection of maxed out stats (1200 versus MAX)
-- Add additional Bitmap safety checks for people on non-1080p displays
+- Fix OCR bug where 90 skill points were being read as 920
+- Mitigate misc check loops by backing out of a screen when possible
 
     </releaseNotes>
   </update>

@@ -1353,26 +1353,59 @@ class ImageUtils(context: Context, private val game: Game) {
 			Imgproc.threshold(cvImage, bwImage, threshold.toDouble(), 255.0, Imgproc.THRESH_BINARY)
 			if (debugMode) Imgcodecs.imwrite("$matchFilePath/debugSkillPoints_afterThreshold.png", bwImage)
 
+			// Create a InputImage object for Google's ML OCR.
 			val resultBitmap = createBitmap(bwImage.cols(), bwImage.rows())
 			Utils.matToBitmap(bwImage, resultBitmap)
-			tessBaseAPI.setImage(resultBitmap)
+			val inputImage: InputImage = InputImage.fromBitmap(resultBitmap, 0)
 
-			// Set the Page Segmentation Mode to '--psm 7' or "Treat the image as a single text line" according to https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html#page-segmentation-method
-			tessBaseAPI.pageSegMode = TessBaseAPI.PageSegMode.PSM_SINGLE_LINE
+			// Use CountDownLatch to make the async operation synchronous.
+			var result = ""
+			val latch = CountDownLatch(1)
+			var mlkitFailed = false
 
-			var result = "empty!"
+			textRecognizer.process(inputImage)
+				.addOnSuccessListener { text ->
+					if (text.textBlocks.isNotEmpty()) {
+						for (block in text.textBlocks) {
+							game.printToLog("[INFO] Detected the number of skill points with Google ML Kit: ${block.text}", tag = tag)
+							result = block.text
+						}
+					}
+					latch.countDown()
+				}
+				.addOnFailureListener {
+					game.printToLog("[ERROR] Failed to do text detection via Google's ML Kit. Falling back to Tesseract.", tag = tag, isError = true)
+					mlkitFailed = true
+					latch.countDown()
+				}
+
+			// Wait for the async operation to complete.
 			try {
-				// Finally, detect text on the cropped region.
-				result = tessBaseAPI.utF8Text
-			} catch (e: Exception) {
-				game.printToLog("[ERROR] Cannot perform OCR with Tesseract: ${e.stackTraceToString()}", tag = tag, isError = true)
+				latch.await(5, TimeUnit.SECONDS)
+			} catch (_: InterruptedException) {
+				game.printToLog("[ERROR] Google ML Kit operation timed out", tag = tag, isError = true)
 			}
 
-			tessBaseAPI.clear()
+			if (mlkitFailed || result == "") {
+				tessBaseAPI.setImage(resultBitmap)
+
+				// Set the Page Segmentation Mode to '--psm 7' or "Treat the image as a single text line" according to https://tesseract-ocr.github.io/tessdoc/ImproveQuality.html#page-segmentation-method
+				tessBaseAPI.pageSegMode = TessBaseAPI.PageSegMode.PSM_SINGLE_LINE
+
+				try {
+					// Finally, detect text on the cropped region.
+					result = tessBaseAPI.utF8Text
+				} catch (e: Exception) {
+					game.printToLog("[ERROR] Cannot perform OCR with Tesseract: ${e.stackTraceToString()}", tag = tag, isError = true)
+				}
+
+				tessBaseAPI.clear()
+			}
+
 			cvImage.release()
 			bwImage.release()
 
-			game.printToLog("[INFO] Detected number of skill points from Tesseract before formatting: $result", tag = tag)
+			game.printToLog("[INFO] Detected number of skill points before formatting: $result", tag = tag)
 			try {
 				Log.d(tag, "Converting $result to integer for skill points")
 				val cleanedResult = result.replace(Regex("[^0-9]"), "")
@@ -1813,14 +1846,23 @@ class ImageUtils(context: Context, private val game: Game) {
 	 * symbol, then constructs the final integer value by analyzing the spatial arrangement
 	 * of detected matches.
 	 *
+	 * @param trainingName Name of the currently selected training to determine which stats to read.
 	 * @param sourceBitmap Bitmap of the source image separately taken. Defaults to null.
 	 * @param skillPointsLocation Point location of the template image separately taken. Defaults to null.
 	 *
 	 * @return Array of 5 detected stat gain values as integers, or -1 for failed detections.
 	 */
-	fun determineStatGainFromTraining(sourceBitmap: Bitmap? = null, skillPointsLocation: Point? = null): IntArray {
+	fun determineStatGainFromTraining(trainingName: String, sourceBitmap: Bitmap? = null, skillPointsLocation: Point? = null): IntArray {
 		val templates = listOf("+", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9")
 		val statNames = listOf("Speed", "Stamina", "Power", "Guts", "Wit")
+		// Define a mapping of training types to their stat indices
+		val trainingToStatIndices = mapOf(
+			"Speed" to listOf(0, 2),
+			"Stamina" to listOf(1, 3),
+			"Power" to listOf(1, 2),
+			"Guts" to listOf(0, 2, 3),
+			"Wit" to listOf(0, 4)
+		)
 
 		val (skillPointsLocation, sourceBitmap) = if (sourceBitmap == null && skillPointsLocation == null) {
 			findImage("skill_points")
@@ -1844,9 +1886,19 @@ class ImageUtils(context: Context, private val game: Game) {
 			for (i in 0 until 5) {
 				Thread {
 					try {
+						// Stop the Thread early if the selected Training would not offer stats for the stat to be checked.
+						// Speed gives Speed and Power
+						// Stamina gives Stamina and Guts
+						// Power gives Stamina and Power
+						// Guts gives Speed, Power and Guts
+						// Wits gives Speed and Wits
+						val validIndices = trainingToStatIndices[trainingName] ?: return@Thread
+						if (i !in validIndices) return@Thread
+
 						val statName = statNames[i]
-						val xOffset = -934 + (i * 180)
-						val croppedBitmap = createSafeBitmap(sourceBitmap!!, relX(skillPointsLocation.x, xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82), "determineStatGainFromTraining $statName")
+						val xOffset = i * 180 // All stats are evenly spaced at 180 pixel intervals.
+
+						val croppedBitmap = createSafeBitmap(sourceBitmap!!, relX(skillPointsLocation.x, -934 + xOffset), relY(skillPointsLocation.y, -103), relWidth(150), relHeight(82), "determineStatGainFromTraining $statName")
 						if (croppedBitmap == null) {
 							game.printToLog("[ERROR] Failed to create cropped bitmap for $statName stat gain detection.", tag = tag, isError = true)
 							threadSafeResults[i] = 0
@@ -1915,7 +1967,7 @@ class ImageUtils(context: Context, private val game: Game) {
 						sourceGray.release()
 						workingMat.release()
 					} catch (e: Exception) {
-						game.printToLog("[ERROR] Error processing stat ${statNames[i]}: ${e.message}", tag = tag, isError = true)
+						game.printToLog("[ERROR] Error processing stat ${statNames[i]}: ${e.stackTraceToString()}", tag = tag, isError = true)
 						threadSafeResults[i] = 0
 					} finally {
 						statLatch.countDown()
@@ -1954,9 +2006,9 @@ class ImageUtils(context: Context, private val game: Game) {
 	 */
 	private fun processStatGainTemplateWithTransparency(templateName: String, templateBitmap: Bitmap, workingMat: Mat, matchResults: MutableMap<String, MutableList<Point>>): MutableMap<String, MutableList<Point>> {
 		// These values have been tested for the best results against the dynamic background.
-		val matchConfidence = 0.8
+		val matchConfidence = 0.9
 		val minPixelMatchRatio = 0.1
-		val minPixelCorrelation = 0.8
+		val minPixelCorrelation = 0.85
 
 		// Convert template to Mat and then to grayscale.
 		val templateMat = Mat()
@@ -2060,12 +2112,27 @@ class ImageUtils(context: Context, private val game: Game) {
 					if (!failedPixelMatchRatio && !failedPixelCorrelation) {
 						val centerX = (x + xOffset) + (w / 2)
 						val centerY = y + (h / 2)
-						Log.d(tag, "[DEBUG] Found valid match for template \"$templateName\" at ($centerX, $centerY).")
-						matchResults[templateName]?.add(Point(centerX.toDouble(), centerY.toDouble()))
+
+						// Check for overlap with existing matches within 10 pixels on both axes.
+						val hasOverlap = matchResults.values.flatten().any { existingPoint ->
+							val existingX = existingPoint.x
+							val existingY = existingPoint.y
+
+							// Check if the new match overlaps with existing match within 10 pixels.
+							val xOverlap = kotlin.math.abs(centerX - existingX) < 10
+							val yOverlap = kotlin.math.abs(centerY - existingY) < 10
+
+							xOverlap && yOverlap
+						}
+
+						if (!hasOverlap) {
+							Log.d(tag, "[DEBUG] Found valid match for template \"$templateName\" at ($centerX, $centerY).")
+							matchResults[templateName]?.add(Point(centerX.toDouble(), centerY.toDouble()))
+						}
 					}
 
 					// Draw a box to prevent re-detection in the next loop iteration.
-					Imgproc.rectangle(searchMat, Point(x.toDouble(), y.toDouble()), Point((x + w).toDouble(), (y + h).toDouble()), Scalar(0.0, 0.0, 0.0), -1)
+					Imgproc.rectangle(searchMat, Point(x.toDouble(), y.toDouble()), Point((x + w).toDouble(), (y + h).toDouble()), Scalar(0.0, 0.0, 0.0), 10)
 
 					templateComparison.release()
 					matchedRegion.release()
@@ -2167,7 +2234,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			if (debugMode) game.printToLog("[DEBUG] Successfully constructed integer value: $result from \"$constructedString\".", tag = tag)
 			result
 		} catch (e: NumberFormatException) {
-			game.printToLog("[ERROR] Could not convert \"$constructedString\" to integer: ${e.message}", tag = tag, isError = true)
+			game.printToLog("[ERROR] Could not convert \"$constructedString\" to integer: ${e.stackTraceToString()}", tag = tag, isError = true)
 			0
 		}
 	}

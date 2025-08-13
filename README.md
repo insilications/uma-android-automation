@@ -73,12 +73,14 @@ This project is purely for educational purposes to learn about Android automatio
     You can also bookmark the commands for your own convenience.
 
 Alternatively, you can do the same on a computer if you cannot get the above to work out.
-1. Install [**adb**](https://developer.android.com/tools/releases/platform-tools). You may need to restart your computer to have your terminal pick up the changes.
+1. Install [**adb**](https://developer.android.com/tools/releases/platform-tools). You will also to add the file path to the folder to `PATH` via the `Environment Variable` setting under `View advanced system settings` so that the terminal will know what the `adb` command should do. You may need to restart your computer to have your terminal pick up the changes.
 2. Open up a new terminal anywhere (cmd, Powershell, etc).
-3. Plug in your Android device via USB. If all goes well, then executing `adb devices` will show your connected device. There may be a popup on your Android device beforehand asking you to give permission to connect to ADB. Wirelessly connecting to ADB is also available via the Android `Settings > Developer options > Wirelss debugging`
-4. Execute the following commands to forcibly set your display resolution to 1080p and DPI to 240:
-    - **Change resolution to 1080p:** `adb shell wm size 1080x1920 && wm density 240`
-    - **Revert changes:** `adb shell wm size reset && wm density reset`
+3. Plug in your Android device via USB. If all goes well, then executing `adb devices` will show your connected device when `Settings > Developer options > USB Debugging` is enabled. There may be a popup on your Android device beforehand asking you to give permission to connect to ADB. Wirelessly connecting to ADB is also available via the Android `Settings > Developer options > Wireless debugging`
+4. Execute the following commands individually to forcibly set your display resolution to 1080p and DPI to 240:
+    - **Change resolution to 1080p:** `adb shell wm size 1080x1920` and `adb shell wm density 240`
+    - **Revert changes:** `adb shell wm size reset` and `adb shell wm density reset`
+
+Note: If your home button disappears, reset the DPI back to default.
 
 Make sure to use 1.0 scaling, as well as 80% confidence for best results in 1080p.
 

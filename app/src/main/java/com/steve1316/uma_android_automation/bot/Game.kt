@@ -103,29 +103,30 @@ class Game(val myContext: Context) {
 		val name: String,
 		val statGains: IntArray,
 		val failureChance: Int,
-		val relationshipBars: ArrayList<ImageUtils.BarFillResult>,
-		val isRainbow: Boolean
+		val relationshipBars: ArrayList<ImageUtils.BarFillResult>
 	) {
-		override fun equals(other: Any?): Boolean {
-			if (this === other) return true
-			if (javaClass != other?.javaClass) return false
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
 
-			other as Training
+            other as Training
 
-			if (isRainbow != other.isRainbow) return false
-			if (name != other.name) return false
-			if (!statGains.contentEquals(other.statGains)) return false
+            if (failureChance != other.failureChance) return false
+            if (name != other.name) return false
+            if (!statGains.contentEquals(other.statGains)) return false
+            if (relationshipBars != other.relationshipBars) return false
 
-			return true
-		}
+            return true
+        }
 
-		override fun hashCode(): Int {
-			var result = isRainbow.hashCode()
-			result = 31 * result + name.hashCode()
-			result = 31 * result + statGains.contentHashCode()
-			return result
-		}
-	}
+        override fun hashCode(): Int {
+            var result = failureChance
+            result = 31 * result + name.hashCode()
+            result = 31 * result + statGains.contentHashCode()
+            result = 31 * result + relationshipBars.hashCode()
+            return result
+        }
+    }
 
 	data class Date(
 		val year: Int,
@@ -594,7 +595,7 @@ class Game(val myContext: Context) {
 	}
 
 	/**
-	 * Analyze all 5 Trainings for their details including stat gain, rainbows, etc.
+	 * Analyze all 5 Trainings for their details including stat gains, relationship bars, etc.
 	 *
 	 * @param test Flag that forces the failure chance through even if it is not in the acceptable range for testing purposes.
 	 */
@@ -693,9 +694,9 @@ class Game(val myContext: Context) {
 					// Thread 1: Determine stat gains.
 					Thread {
 						try {
-							statGains = imageUtils.determineStatGainFromTraining(sourceBitmap, skillPointsLocation!!)
+							statGains = imageUtils.determineStatGainFromTraining(training, sourceBitmap, skillPointsLocation!!)
 						} catch (e: Exception) {
-							printToLog("[ERROR] Error in determineStatGainFromTraining: ${e.message}", isError = true)
+							printToLog("[ERROR] Error in determineStatGainFromTraining: ${e.stackTraceToString()}", isError = true)
 							statGains = intArrayOf(0, 0, 0, 0, 0)
 						} finally {
 							latch.countDown()
@@ -707,7 +708,7 @@ class Game(val myContext: Context) {
 						try {
 							failureChance = imageUtils.findTrainingFailureChance(sourceBitmap, trainingSelectionLocation!!)
 						} catch (e: Exception) {
-							printToLog("[ERROR] Error in findTrainingFailureChance: ${e.message}", isError = true)
+							printToLog("[ERROR] Error in findTrainingFailureChance: ${e.stackTraceToString()}", isError = true)
 							failureChance = -1
 						} finally {
 							latch.countDown()
@@ -719,7 +720,7 @@ class Game(val myContext: Context) {
 						try {
 							relationshipBars = imageUtils.analyzeRelationshipBars(sourceBitmap)
 						} catch (e: Exception) {
-							printToLog("[ERROR] Error in analyzeRelationshipBars: ${e.message}", isError = true)
+							printToLog("[ERROR] Error in analyzeRelationshipBars: ${e.stackTraceToString()}", isError = true)
 							relationshipBars = arrayListOf()
 						} finally {
 							latch.countDown()
@@ -737,8 +738,7 @@ class Game(val myContext: Context) {
 						name = training,
 						statGains = statGains,
 						failureChance = failureChance,
-						relationshipBars = relationshipBars,
-						isRainbow = imageUtils.findImage("training_rainbow", tries = 1, imageUtils.regionBottomHalf, suppressError = true).first != null
+						relationshipBars = relationshipBars
 					)
 					trainingMap.put(training, newTraining)
 				}
@@ -771,7 +771,7 @@ class Game(val myContext: Context) {
 	 * The scoring system considers multiple factors:
 	 * - **Stat Efficiency:** How well training helps achieve target stats for the preferred race distance
 	 * - **Relationship Building:** Value of friendship bar progress with diminishing returns
-	 * - **Context Bonuses:** Rainbow training bonuses, phase-specific bonuses, and stat gain thresholds
+	 * - **Context Bonuses:** Phase-specific bonuses and stat gain thresholds
 	 * - **Blacklist Compliance:** Excludes blacklisted training options
 	 * - **Stat Cap Respect:** Avoids training that would exceed stat caps when enabled
 	 *
@@ -789,7 +789,7 @@ class Game(val myContext: Context) {
 		 * @return A score representing relationship-building value.
 		 */
 		fun scoreFriendshipTraining(training: Training): Double {
-			// Ignore the blacklist and rainbow bonuses in favor of making sure we build up the relationship bars as fast as possible.
+			// Ignore the blacklist in favor of making sure we build up the relationship bars as fast as possible.
 			printToLog("\n[TRAINING] Starting process to score ${training.name} Training with a focus on building relationship bars.")
 
 			val barResults = training.relationshipBars
@@ -818,6 +818,7 @@ class Game(val myContext: Context) {
 		 * - Priority weights that vary by game year (higher priority in later years)
 		 * - Efficiency bonuses for closing gaps vs diminishing returns for overage
 		 * - Spark stat target focus when enabled (Speed, Stamina, Power to 600+)
+		 * - Enhanced priority weighting for top 3 stats to prevent target completion from overriding large gains
 		 *
 		 * @param training The training option to evaluate.
 		 * @param target Array of target stat values for the preferred race distance.
@@ -825,8 +826,7 @@ class Game(val myContext: Context) {
 		 * @return A normalized score (0-100) representing stat efficiency.
 		 */
 		fun calculateStatEfficiencyScore(training: Training, target: IntArray): Double {
-			var score = 0.0
-			var maxScore = 0.0
+			var score = 100.0
 
 			for ((index, stat) in trainings.withIndex()) {
 				val currentStat = currentStatsMap.getOrDefault(stat, 0)
@@ -838,25 +838,47 @@ class Game(val myContext: Context) {
 					// Priority weight based on the current state of the game.
 					val priorityIndex = statPrioritization.indexOf(stat)
 					val priorityWeight = if (priorityIndex != -1) {
-						when {
+						// Enhanced priority weighting for top 3 stats
+						val top3Bonus = when (priorityIndex) {
+							0 -> 2.0
+							1 -> 1.5
+							2 -> 1.1
+							else -> 1.0
+						}
+						
+						val baseWeight = when {
 							currentDate.year == 1 || currentDate.phase == "Pre-Debut" -> 1.0 + (0.1 * (statPrioritization.size - priorityIndex)) / statPrioritization.size
 							currentDate.year == 2 -> 1.0 + (0.3 * (statPrioritization.size - priorityIndex)) / statPrioritization.size
 							currentDate.year == 3 -> 1.0 + (0.5 * (statPrioritization.size - priorityIndex)) / statPrioritization.size
 							else -> 1.0
 						}
+
+						baseWeight * top3Bonus
 					} else {
 						0.5 // Lower weight for non-prioritized stats.
 					}
 
+					Log.d(tag, "[DEBUG] Priority Weight: $priorityWeight")
+
 					// Calculate efficiency based on remaining gap between the current stat and the target.
 					var efficiency = if (remaining > 0) {
-						// Stat is below target, calculate how much of the gap this closes.
-						2.0 + (statGain.toDouble() / remaining).coerceAtMost(1.0)
+						// Stat is below target, but reduce the bonus when very close to the target.
+						Log.d(tag, "[DEBUG] Giving bonus for remaining efficiency.")
+						val gapRatio = remaining.toDouble() / targetStat
+						val targetBonus = when {
+							gapRatio > 0.1 -> 1.5
+							gapRatio > 0.05 -> 1.25
+							else -> 1.1
+						}
+						targetBonus + (statGain.toDouble() / remaining).coerceAtMost(1.0)
 					} else {
 						// Stat is above target, give a diminishing bonus based on how much over.
+						Log.d(tag, "[DEBUG] Stat is above target so giving diminishing bonus.")
 						val overageRatio = (statGain.toDouble() / (-remaining + statGain))
 						1.0 + overageRatio
 					}
+
+					Log.d(tag, "[DEBUG] Efficiency: $efficiency")
 
 					// Apply Spark stat target focus when enabled.
 					if (focusOnSparkStatTarget) {
@@ -872,12 +894,13 @@ class Game(val myContext: Context) {
 						}
 					}
 
-					score += efficiency * priorityWeight
-					maxScore += 1.0
+					score += statGain * 2
+					score += (statGain * 2) * (efficiency * priorityWeight)
+					Log.d(tag, "[DEBUG] Score: $score")
 				}
 			}
 
-			return if (maxScore > 0) (score / maxScore * 100.0) else 0.0
+			return score.coerceAtMost(1000.0)
 		}
 
 		/**
@@ -929,7 +952,6 @@ class Game(val myContext: Context) {
 		 * Calculates context-aware bonuses and penalties based on game phase and training properties.
 		 *
 		 * Applies various bonuses including:
-		 * - Rainbow training bonus (2x multiplier)
 		 * - Phase-specific bonuses (relationship focus in early game, stat efficiency in later years)
 		 * - Stat gain thresholds that provide additional bonuses
 		 *
@@ -940,11 +962,6 @@ class Game(val myContext: Context) {
 		fun calculateContextScore(training: Training): Double {
 			// Start with neutral score.
 			var score = 100.0
-
-			// Bonus for rainbow training.
-			if (training.isRainbow) {
-				score *= 5
-			}
 
 			// Bonuses for each game phase.
 			when {
@@ -986,7 +1003,7 @@ class Game(val myContext: Context) {
 		 * This scoring system combines three main components:
 		 * - Stat efficiency (60-70% weight): How well the training helps achieve stat targets
 		 * - Relationship building (10% weight): Value of friendship bar progress
-		 * - Context bonuses (30% weight): Rainbow bonuses, phase-specific bonuses, etc.
+		 * - Context bonuses (30% weight): Phase-specific bonuses, etc.
 		 *
 		 * The weighting changes based on whether relationship bars are present:
 		 * - With relationship bars: 60% stat, 10% relationship, 30% context
@@ -1038,7 +1055,11 @@ class Game(val myContext: Context) {
 				maxPossibleScore += 100.0 * 0.3
 			}
 
-			printToLog("[TRAINING] Scores | Stat Efficiency: ${decimalFormat.format(statScore)}, Relationship: ${decimalFormat.format(relationshipScore)}, Context: ${decimalFormat.format(contextScore)}")
+			printToLog(
+				"[TRAINING] Scores | Current Stat: ${currentStatsMap[training.name]}, Target Stat: ${target[trainings.indexOf(training.name)]}, " +
+					"Stat Efficiency: ${decimalFormat.format(statScore)}, Relationship: ${decimalFormat.format(relationshipScore)}, " +
+					"Context: ${decimalFormat.format(contextScore)}"
+			)
 
 			// Normalize the score.
 			val normalizedScore = (totalScore / maxPossibleScore * 100.0).coerceIn(1.0, 1000.0)
@@ -1871,7 +1892,7 @@ class Game(val myContext: Context) {
 	private fun printTrainingMap() {
 		printToLog("\n[INFO] Stat Gains by Training:")
 		trainingMap.forEach { name, training ->
-			printToLog("[TRAINING] $name Training stat gains: ${training.statGains.contentToString()}, failure chance: ${training.failureChance}%, is rainbow training: ${training.isRainbow}.")
+			printToLog("[TRAINING] $name Training stat gains: ${training.statGains.contentToString()}, failure chance: ${training.failureChance}%.")
 		}
 	}
 
@@ -1914,6 +1935,8 @@ class Game(val myContext: Context) {
 			printToLog("[INFO] There was a popup about insufficient fans.")
 			encounteredRacingPopup = true
 			findAndTapImage("cancel", region = imageUtils.regionBottomHalf)
+		} else if (findAndTapImage("back", tries = 1, region = imageUtils.regionBottomHalf, suppressError = true)) {
+			wait(1.0)
 		} else if (!BotService.isRunning) {
 			throw InterruptedException()
 		} else {
