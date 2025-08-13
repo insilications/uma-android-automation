@@ -818,6 +818,7 @@ class Game(val myContext: Context) {
 		 * - Priority weights that vary by game year (higher priority in later years)
 		 * - Efficiency bonuses for closing gaps vs diminishing returns for overage
 		 * - Spark stat target focus when enabled (Speed, Stamina, Power to 600+)
+		 * - Enhanced priority weighting for top 3 stats to prevent target completion from overriding large gains
 		 *
 		 * @param training The training option to evaluate.
 		 * @param target Array of target stat values for the preferred race distance.
@@ -825,8 +826,7 @@ class Game(val myContext: Context) {
 		 * @return A normalized score (0-100) representing stat efficiency.
 		 */
 		fun calculateStatEfficiencyScore(training: Training, target: IntArray): Double {
-			var score = 0.0
-			var maxScore = 0.0
+			var score = 100.0
 
 			for ((index, stat) in trainings.withIndex()) {
 				val currentStat = currentStatsMap.getOrDefault(stat, 0)
@@ -838,25 +838,47 @@ class Game(val myContext: Context) {
 					// Priority weight based on the current state of the game.
 					val priorityIndex = statPrioritization.indexOf(stat)
 					val priorityWeight = if (priorityIndex != -1) {
-						when {
+						// Enhanced priority weighting for top 3 stats
+						val top3Bonus = when (priorityIndex) {
+							0 -> 2.0
+							1 -> 1.5
+							2 -> 1.1
+							else -> 1.0
+						}
+						
+						val baseWeight = when {
 							currentDate.year == 1 || currentDate.phase == "Pre-Debut" -> 1.0 + (0.1 * (statPrioritization.size - priorityIndex)) / statPrioritization.size
 							currentDate.year == 2 -> 1.0 + (0.3 * (statPrioritization.size - priorityIndex)) / statPrioritization.size
 							currentDate.year == 3 -> 1.0 + (0.5 * (statPrioritization.size - priorityIndex)) / statPrioritization.size
 							else -> 1.0
 						}
+
+						baseWeight * top3Bonus
 					} else {
 						0.5 // Lower weight for non-prioritized stats.
 					}
 
+					Log.d(tag, "[DEBUG] Priority Weight: $priorityWeight")
+
 					// Calculate efficiency based on remaining gap between the current stat and the target.
 					var efficiency = if (remaining > 0) {
-						// Stat is below target, calculate how much of the gap this closes.
-						2.0 + (statGain.toDouble() / remaining).coerceAtMost(1.0)
+						// Stat is below target, but reduce the bonus when very close to the target.
+						Log.d(tag, "[DEBUG] Giving bonus for remaining efficiency.")
+						val gapRatio = remaining.toDouble() / targetStat
+						val targetBonus = when {
+							gapRatio > 0.1 -> 1.5
+							gapRatio > 0.05 -> 1.25
+							else -> 1.1
+						}
+						targetBonus + (statGain.toDouble() / remaining).coerceAtMost(1.0)
 					} else {
 						// Stat is above target, give a diminishing bonus based on how much over.
+						Log.d(tag, "[DEBUG] Stat is above target so giving diminishing bonus.")
 						val overageRatio = (statGain.toDouble() / (-remaining + statGain))
 						1.0 + overageRatio
 					}
+
+					Log.d(tag, "[DEBUG] Efficiency: $efficiency")
 
 					// Apply Spark stat target focus when enabled.
 					if (focusOnSparkStatTarget) {
@@ -872,12 +894,13 @@ class Game(val myContext: Context) {
 						}
 					}
 
-					score += efficiency * priorityWeight
-					maxScore += 1.0
+					score += statGain * 2
+					score += (statGain * 2) * (efficiency * priorityWeight)
+					Log.d(tag, "[DEBUG] Score: $score")
 				}
 			}
 
-			return if (maxScore > 0) (score / maxScore * 100.0) else 0.0
+			return score.coerceAtMost(1000.0)
 		}
 
 		/**
