@@ -1923,14 +1923,14 @@ class ImageUtils(context: Context, private val game: Game) {
 						for (templateName in templates) {
 							val templateBitmap = templateBitmaps[templateName]
 							if (templateBitmap != null) {
-								matchResults = processStatGainTemplateWithTransparency(trainingName, templateName, templateBitmap, workingMat, matchResults)
+								matchResults = processStatGainTemplateWithTransparency(statName, trainingName, templateName, templateBitmap, workingMat, matchResults)
 							} else {
 								game.printToLog("[ERROR] [$trainingName] Could not load template \"$templateName\".", tag = tag, isError = true)
 							}
 						}
 
 						// Analyze results and construct the final integer value for this region.
-						val finalValue = constructIntegerFromMatches(trainingName, matchResults)
+						val finalValue = constructIntegerFromMatches(statName, trainingName, matchResults)
 						threadSafeResults[i] = finalValue
 						game.printToLog("[INFO] [$trainingName] $statName region final constructed value: $finalValue.", tag = tag)
 
@@ -1991,201 +1991,214 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
-	 * Processes a single template with transparency to find all valid matches in the working matrix through a multi-stage algorithm.
+	 * Processes a single template with transparency to find all valid matches in the working matrix
+	 * using a non-maximum-suppression loop over a single matchTemplate result map.
 	 *
-	 * The algorithm uses two validation criteria:
-	 * - Pixel match ratio: Ensures sufficient pixel-level similarity.
-	 * - Correlation coefficient: Validates statistical correlation between template and matched region.
+	 * Validation criteria:
+	 *  - Pixel match ratio (with tolerance) on non-transparent pixels only.
+	 *  - Correlation coefficient computed with a mask over non-transparent pixels only.
 	 *
-	 * @param templateName Name of the template being processed (used for logging and debugging).
-	 * @param templateBitmap Bitmap of the template image (must have 4-channel RGBA format with transparency).
-	 * @param workingMat Working matrix to search in (grayscale source image).
-	 * @param matchResults Map to store match results, organized by template name.
+	 * @param statName Name of the stat being processed for the current `trainingName` (used for logging and debugging).
+	 * @param trainingName Name of the training category being processed (logging/debugging).
+	 * @param templateName Name of the template being processed (logging/debugging).
+	 * @param templateBitmap Template bitmap (must be 4-channel RGBA with transparency).
+	 * @param workingMat Grayscale source image to search in (1-channel Mat). If not, it will be converted.
+	 * @param matchResults Output map of detections by template name; points are centers of detected boxes.
 	 *
-	 * @return The modified matchResults mapping containing all valid matches found for this template
+	 * @return Updated matchResults map with all valid matches for this template.
 	 */
-	private fun processStatGainTemplateWithTransparency(trainingName: String, templateName: String, templateBitmap: Bitmap, workingMat: Mat, matchResults: MutableMap<String, MutableList<Point>>): MutableMap<String, MutableList<Point>> {
-		// These values have been tested for the best results against the dynamic background.
-		val matchConfidence = 0.9
-		val minPixelMatchRatio = 0.1
-		val minPixelCorrelation = 0.85
+	private fun processStatGainTemplateWithTransparency(
+		statName: String,
+		trainingName: String,
+		templateName: String,
+		templateBitmap: Bitmap,
+		workingMat: Mat,
+		matchResults: MutableMap<String, MutableList<Point>>
+	): MutableMap<String, MutableList<Point>> {
 
-		// Convert template to Mat and then to grayscale.
+		// Tunables (tested on dynamic backgrounds)
+		val minMatchConfidence = 0.95
+		val minPixelMatchRatio = 0.9
+		val minPixelCorrelation = 0.85
+		val pixelTolerance = 25.0   // intensity tolerance [0..255] for "equal" pixels
+
+		// Ensure output list exists for this template
+		val resultsForTemplate = matchResults.getOrPut(templateName) { mutableListOf() }
+
+		// Convert template Bitmap -> Mat
 		val templateMat = Mat()
 		val templateGray = Mat()
-		Utils.bitmapToMat(templateBitmap, templateMat)
-		Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_BGR2GRAY)
+		Utils.bitmapToMat(templateBitmap, templateMat, true)
 
-		// Check if template has an alpha channel (transparency).
+		// Require transparency (4 channels expected)
 		if (templateMat.channels() != 4) {
-			Log.e(tag, "[ERROR] [$trainingName] Template \"$templateName\" is not transparent and is a requirement.")
+			Log.e(tag, "[ERROR] [$trainingName] [$statName] Template \"$templateName\" must have transparency (4 channels).")
 			templateMat.release()
 			templateGray.release()
 			return matchResults
 		}
 
-		// Extract alpha channel for the alpha mask.
-		val alphaChannels = ArrayList<Mat>()
-		Core.split(templateMat, alphaChannels)
-		val alphaMask = alphaChannels[3] // Alpha channel is the 4th channel.
+		// Convert template to grayscale.
+		// Assumes RGBA input (Android default). If your pipeline gives BGRA, use COLOR_BGRA2GRAY instead.
+//		Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_RGBA2GRAY)
+		Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_BGRA2GRAY)
 
-		// Create binary mask for non-transparent pixels.
+		// Extract alpha and build a binary mask of valid (non-transparent) pixels
+		val splitChannels = ArrayList<Mat>(4)
+		Core.split(templateMat, splitChannels)
+		val alphaMask = splitChannels[3] // 4th channel is alpha in both RGBA and BGRA
 		val validPixels = Mat()
-		Core.compare(alphaMask, Scalar(0.0), validPixels, Core.CMP_GT)
+		Core.compare(alphaMask, Scalar(200.0), validPixels, Core.CMP_GT) // 255 where alpha > 0
 
-		// Check transparency ratio.
-		val nonZeroPixels = Core.countNonZero(alphaMask)
+		// Transparency ratio sanity check
+		val nonZeroAlpha = Core.countNonZero(alphaMask)
 		val totalPixels = alphaMask.rows() * alphaMask.cols()
-		val transparencyRatio = nonZeroPixels.toDouble() / totalPixels
-		if (transparencyRatio < 0.1) {
-			Log.w(tag, "[DEBUG] [$trainingName] Template \"$templateName\" appears to be mostly transparent!")
-			alphaChannels.forEach { it.release() }
+		val transparencyRatio = nonZeroAlpha.toDouble() / totalPixels
+		if (transparencyRatio < 0.10) {
+			Log.w(tag, "[DEBUG] [$trainingName] [$statName] Template \"$templateName\" appears to be mostly transparent; skipping.")
+			// Cleanup
+			splitChannels.forEach { it.release() }
 			validPixels.release()
 			alphaMask.release()
 			templateMat.release()
 			templateGray.release()
 			return matchResults
 		}
+		val maskNonZeroCount = nonZeroAlpha // used for pixel ratio denominator
 
-		////////////////////////////////////////////////////////////////////
-		////////////////////////////////////////////////////////////////////
+		// Ensure workingMat is grayscale (1-channel)
+		val srcGray: Mat
+		var releaseSrcGray = false
+		if (workingMat.channels() == 1) {
+			srcGray = workingMat
+		} else {
+			srcGray = Mat()
+			Imgproc.cvtColor(workingMat, srcGray, Imgproc.COLOR_BGR2GRAY)
+			releaseSrcGray = true
+		}
 
-		var continueSearching = true
-		var searchMat = Mat()
-		var xOffset = 0
-		workingMat.copyTo(searchMat)
+		// Perform one masked template match across the full image
+		val result = Mat()
+		Imgproc.matchTemplate(srcGray, templateGray, result, Imgproc.TM_CCORR_NORMED, alphaMask)
 
-		while (continueSearching) {
-			var failedPixelMatchRatio = false
-			var failedPixelCorrelation = false
+		// For debug visualization, draw boxes on a copy (optional)
+		val debugViz: Mat? = if (debugMode) srcGray.clone() else null
 
-			// Template match with the alpha mask.
-			val result = Mat()
-			Imgproc.matchTemplate(searchMat, templateGray, result, Imgproc.TM_CCORR_NORMED, alphaMask)
+		val w = templateGray.cols()
+		val h = templateGray.rows()
+		var iterations = 0
+
+		while (true) {
 			val mmr = Core.minMaxLoc(result)
-			val matchVal = mmr.maxVal
-			val matchLocation = mmr.maxLoc
+			val matchValConfidence = mmr.maxVal
+			if (matchValConfidence < minMatchConfidence) {
+				Log.d(tag, "[DEBUG] [$trainingName] [$statName] \"$templateName\" - stopping: next peak $matchValConfidence (matchValConfidence) < $minMatchConfidence (minMatchConfidence)")
+				break
+			}
 
-			if (matchVal >= matchConfidence) {
-				val x = matchLocation.x.toInt()
-				val y = matchLocation.y.toInt()
-				val h = templateGray.rows()
-				val w = templateGray.cols()
+			val x = mmr.maxLoc.x.toInt()
+			val y = mmr.maxLoc.y.toInt()
 
-				// Validate that the match location is within bounds.
-				if (x >= 0 && y >= 0 && x + w <= searchMat.cols() && y + h <= searchMat.rows()) {
-					// Extract the matched region from the source image.
-					val matchedRegion = Mat(searchMat, Rect(x, y, w, h))
+			// Bounds check (should be valid by construction, but guard anyway)
+			if (x < 0 || y < 0 || x + w > srcGray.cols() || y + h > srcGray.rows()) {
+				// Suppress this invalid location in the result and continue
+				val rx0 = kotlin.math.max(0, x - w + 1)
+				val ry0 = kotlin.math.max(0, y - h + 1)
+				val rx1 = kotlin.math.min(result.cols() - 1, x + w - 1)
+				val ry1 = kotlin.math.min(result.rows() - 1, y + h - 1)
+				val rw = kotlin.math.max(0, rx1 - rx0 + 1)
+				val rh = kotlin.math.max(0, ry1 - ry0 + 1)
+				if (rw > 0 && rh > 0) {
+					result.submat(Rect(rx0, ry0, rw, rh)).setTo(Scalar(0.0))
+				}
+				continue
+			}
 
-					// Create masked versions of the template and matched region using only non-transparent pixels.
-					val templateValid = Mat()
-					val regionValid = Mat()
-					templateGray.copyTo(templateValid, validPixels)
-					matchedRegion.copyTo(regionValid, validPixels)
+			// Extract matched region from the source
+			val matchedRegion = Mat(srcGray, Rect(x, y, w, h))
 
-					// For the first test, compare pixel-by-pixel equality between the matched region and template to calculate match ratio.
-					val templateComparison = Mat()
-					Core.compare(matchedRegion, templateGray, templateComparison, Core.CMP_EQ)
-					val matchingPixels = Core.countNonZero(templateComparison)
-					val pixelMatchRatio = matchingPixels.toDouble() / (w * h)
-					if (pixelMatchRatio < minPixelMatchRatio) {
-						failedPixelMatchRatio = true
-					}
+			// 1) Pixel-ratio test over non-transparent pixels only (with tolerance)
+			val diff = Mat()
+			Core.absdiff(matchedRegion, templateGray, diff)               // |region - template|
+			val maskedDiff = Mat()
+			diff.copyTo(maskedDiff, validPixels)                          // only alpha>0 locations
+			val eqMask = Mat()
+			Imgproc.threshold(maskedDiff, eqMask, pixelTolerance, 255.0, Imgproc.THRESH_BINARY_INV) // 255 where diff<=tol
+			val matchingPixels = Core.countNonZero(eqMask)
+			val pixelMatchRatio = if (maskNonZeroCount > 0) {
+				matchingPixels.toDouble() / maskNonZeroCount.toDouble()
+			} else 0.0
+			val failedPixelMatchRatio = pixelMatchRatio < minPixelMatchRatio
 
-					// Extract pixel values into double arrays for correlation calculation.
-					val templateValidMat = Mat()
-					val regionValidMat = Mat()
-					templateValid.convertTo(templateValidMat, CvType.CV_64F)
-					regionValid.convertTo(regionValidMat, CvType.CV_64F)
-					val templateArray = DoubleArray(templateValid.total().toInt())
-					val regionArray = DoubleArray(regionValid.total().toInt())
-					templateValidMat.get(0, 0, templateArray)
-					regionValidMat.get(0, 0, regionArray)
+			// 2) Correlation test over non-transparent pixels only
+			val pixelCorrelation = maskedCorrelation(templateGray, matchedRegion, validPixels)
+			val failedPixelCorrelation = pixelCorrelation < minPixelCorrelation
 
-					// For the second test, validate the match quality by performing correlation calculation.
-					val pixelCorrelation = calculateCorrelation(templateArray, regionArray)
-					if (pixelCorrelation < minPixelCorrelation) {
-						failedPixelCorrelation = true
-					}
+			if (!failedPixelMatchRatio && !failedPixelCorrelation) {
+				val centerX = x + w / 2
+				val centerY = y + h / 2
 
-					// If both tests passed, then the match is valid.
-					if (!failedPixelMatchRatio && !failedPixelCorrelation) {
-						val centerX = (x + xOffset) + (w / 2)
-						val centerY = y + (h / 2)
+				// Per-template overlap check scaled by template size
+				val tooClose = resultsForTemplate.any { p ->
+					kotlin.math.abs(centerX - p.x) < (w * 0.5) && kotlin.math.abs(centerY - p.y) < (h * 0.5)
+				}
 
-						// Check for overlap with existing matches within 10 pixels on both axes.
-						val hasOverlap = matchResults.values.flatten().any { existingPoint ->
-							val existingX = existingPoint.x
-							val existingY = existingPoint.y
-
-							// Check if the new match overlaps with existing match within 10 pixels.
-							val xOverlap = kotlin.math.abs(centerX - existingX) < 10
-							val yOverlap = kotlin.math.abs(centerY - existingY) < 10
-
-							xOverlap && yOverlap
-						}
-
-						if (!hasOverlap) {
-							Log.d(tag, "[DEBUG] [$trainingName] Found valid match for template \"$templateName\" at ($centerX, $centerY).")
-							matchResults[templateName]?.add(Point(centerX.toDouble(), centerY.toDouble()))
-						} else {
-							Log.d(tag, "[DEBUG] [$trainingName] [OVERLAP] Found valid match for template \"$templateName\" at ($centerX, $centerY).")
-						}
-					}
-
-					// Draw a box to prevent re-detection in the next loop iteration.
-					Imgproc.rectangle(searchMat, Point(x.toDouble(), y.toDouble()), Point((x + w).toDouble(), (y + h).toDouble()), Scalar(0.0, 0.0, 0.0), 10)
-
-					if (debugMode) Imgcodecs.imwrite("$matchFilePath/debugTrainingStatGain_${trainingName}_${templateName}.png", searchMat)
-
-					templateComparison.release()
-					matchedRegion.release()
-					templateValid.release()
-					regionValid.release()
-					templateValidMat.release()
-					regionValidMat.release()
-
-					// Crop the Mat horizontally to exclude the supposed matched area.
-					val cropX = x + w
-					val remainingWidth = searchMat.cols() - cropX
-					when {
-						remainingWidth < templateGray.cols() -> {
-							Log.d(tag, "[DEBUG] [$trainingName] Template: \"$templateName\" - remainingWidth: ${remainingWidth} < templateGray.cols(): ${templateGray.cols()} - continueSearching: false")
-							continueSearching = false
-						}
-						else -> {
-							Log.d(tag, "[DEBUG] [$trainingName] Template: \"$templateName\" - remainingWidth: ${remainingWidth} > templateGray.cols(): ${templateGray.cols()} - continueSearching: true")
-							val newSearchMat = Mat(searchMat, Rect(cropX, 0, remainingWidth, searchMat.rows()))
-							searchMat.release()
-							searchMat = newSearchMat
-							xOffset += cropX
-						}
+				if (!tooClose) {
+					resultsForTemplate.add(Point(centerX.toDouble(), centerY.toDouble()))
+					Log.d(tag, "[DEBUG] [$trainingName] [$statName] Valid match for \"$templateName\" at ($centerX, $centerY), matchValConfidence=$matchValConfidence (minMatchConfidence=%.2f), pixelMatchRatio=%.3f (minPixelMatchRatio=%.2f), pixelCorrelation=%.3f (min=%.2f)".format(minMatchConfidence, pixelMatchRatio, minPixelMatchRatio,  pixelCorrelation, minPixelCorrelation))
+					if (debugViz != null) {
+						Imgproc.rectangle(
+							debugViz,
+							Point(x.toDouble(), y.toDouble()),
+							Point((x + w).toDouble(), (y + h).toDouble()),
+							Scalar(255.0), 2
+						)
 					}
 				} else {
-					// Stop searching when the source has been traversed.
-					continueSearching = false
+					Log.d(tag, "[DEBUG] [$trainingName] [$statName] \"$templateName\" near-duplicate suppressed at ($centerX, $centerY).")
 				}
 			} else {
-				// No match found above threshold, stop searching for this template.
-				continueSearching = false
+				Log.d(tag, "[DEBUG] [$trainingName] [$statName] \"$templateName\" rejected at ($x, $y): matchValConfidence=%.3f (minMatchConfidence=%.2f), pixelMatchRatio=%.3f (minPixelMatchRatio=%.2f), pixelCorrelation=%.3f (minPixelCorrelation=%.2f)".format(matchValConfidence, minMatchConfidence,
+					pixelMatchRatio, minPixelMatchRatio, pixelCorrelation, minPixelCorrelation
+				))
 			}
 
-			result.release()
-
-			// Safety check to prevent infinite loops.
-			if ((matchResults[templateName]?.size ?: 0) > 10) {
-				continueSearching = false
+			// Non-maximum suppression in the result map:
+			// Zero-out all top-left positions whose boxes would overlap this detection.
+			val rx0 = kotlin.math.max(0, x - w + 1)
+			val ry0 = kotlin.math.max(0, y - h + 1)
+			val rx1 = kotlin.math.min(result.cols() - 1, x + w - 1)
+			val ry1 = kotlin.math.min(result.rows() - 1, y + h - 1)
+			val rw = kotlin.math.max(0, rx1 - rx0 + 1)
+			val rh = kotlin.math.max(0, ry1 - ry0 + 1)
+			if (rw > 0 && rh > 0) {
+				result.submat(Rect(rx0, ry0, rw, rh)).setTo(Scalar(0.0))
 			}
-			if (!BotService.isRunning) {
-				throw InterruptedException()
+
+			// Cleanup per-iteration temporaries
+			matchedRegion.release()
+			diff.release()
+			maskedDiff.release()
+			eqMask.release()
+
+			iterations += 1
+			if (!BotService.isRunning) throw InterruptedException()
+			if (iterations > 100 || resultsForTemplate.size > 10) { // safety valves
+				Log.d(tag, "[DEBUG] [$trainingName] [$statName] \"$templateName\" stopping after $iterations iterations; found=${resultsForTemplate.size}")
+				break
 			}
 		}
 
-		////////////////////////////////////////////////////////////////////
-		////////////////////////////////////////////////////////////////////
+		// Debug image write (after all detections)
+		if (debugMode && debugViz != null) {
+			Imgcodecs.imwrite("$matchFilePath/debugTrainingStatGain_${trainingName}_${statName}_${templateName}.png", debugViz)
+			debugViz.release()
+		}
 
-		searchMat.release()
-		alphaChannels.forEach { it.release() }
+		// Cleanup
+		result.release()
+		if (releaseSrcGray) srcGray.release()
+		splitChannels.forEachIndexed { idx, ch -> if (idx != 3) ch.release() } // release non-alpha channels
 		validPixels.release()
 		alphaMask.release()
 		templateMat.release()
@@ -2195,55 +2208,222 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
-	 * Constructs the final integer value from matched template locations of numbers by analyzing spatial arrangement.
-	 *
-	 * The function is designed for OCR-like scenarios where individual character templates
-	 * are matched separately and need to be reconstructed into a complete number.
-	 *
-	 * If matchResults contains: {"+" -> [(10, 20)], "1" -> [(15, 20)], "2" -> [(20, 20)]}, it returns: 12 (from string "+12").
-	 *
-	 * @param matchResults Map of template names (e.g., "0", "1", "2", "+") to their match locations.
-	 *
-	 * @return The constructed integer value or -1 if it failed.
+	 * Compute Pearson correlation between two single-channel Mats over a mask of valid pixels.
+	 * Returns a value in [-1, 1]. If either region is nearly constant under the mask, returns 0.0.
 	 */
-	private fun constructIntegerFromMatches(trainingName: String, matchResults: Map<String, MutableList<Point>>): Int {
-		// Collect all matches with their template names.
-		val allMatches = mutableListOf<Pair<String, Point>>()
+	private fun maskedCorrelation(a8u: Mat, b8u: Mat, mask: Mat): Double {
+		require(a8u.rows() == b8u.rows() && a8u.cols() == b8u.cols()) { "maskedCorrelation: size mismatch" }
+		require(a8u.type() == CvType.CV_8UC1 && b8u.type() == CvType.CV_8UC1) { "maskedCorrelation expects CV_8UC1 inputs" }
+		require(mask.type() == CvType.CV_8UC1 && mask.rows() == a8u.rows() && mask.cols() == a8u.cols()) { "mask must be CV_8UC1 and same size" }
+
+		val a32 = Mat()
+		val b32 = Mat()
+		a8u.convertTo(a32, CvType.CV_32F)
+		b8u.convertTo(b32, CvType.CV_32F)
+
+		val meanA = MatOfDouble()
+		val stdA = MatOfDouble()
+		val meanB = MatOfDouble()
+		val stdB = MatOfDouble()
+
+		Core.meanStdDev(a32, meanA, stdA, mask)
+		Core.meanStdDev(b32, meanB, stdB, mask)
+
+		val mA = meanA.toArray()[0]
+		val sA = stdA.toArray()[0]
+		val mB = meanB.toArray()[0]
+		val sB = stdB.toArray()[0]
+
+		val prod = Mat()
+		Core.multiply(a32, b32, prod) // elementwise product
+		val meanProd = Core.mean(prod, mask).`val`[0]
+
+		val cov = meanProd - (mA * mB)
+		val denom = sA * sB
+
+		// Cleanup
+		a32.release(); b32.release(); prod.release()
+		meanA.release(); stdA.release(); meanB.release(); stdB.release()
+
+		if (denom < 1e-6) return 0.0
+		return (cov / denom).coerceIn(-1.0, 1.0)
+	}
+
+	/**
+	 * Constructs the final integer value from matched template locations by analyzing spatial order.
+	 *
+	 * Rules:
+	 *  - Prefer sequences that look like "+<digits>" where '+' is the leftmost element.
+	 *  - If no leading '+', take the longest consecutive run of digits.
+	 *  - Last resort: take all digits found.
+	 *
+	 * Note: returns 0 on failure (aligns with current callers). Update callers if you prefer -1.
+	 */
+	private fun constructIntegerFromMatches(
+		statName: String,
+		trainingName: String,
+		matchResults: Map<String, MutableList<Point>>
+	): Int {
+		// 1) Flatten and keep only valid glyphs ('0'..'9' and '+')
+		data class Glyph(val ch: Char, val x: Double, val y: Double)
+		val glyphs = mutableListOf<Glyph>()
 		matchResults.forEach { (templateName, points) ->
-			points.forEach { point ->
-				allMatches.add(Pair(templateName, point))
+			if (templateName.isNotEmpty()) {
+				val ch = templateName[0]
+				if (ch == '+' || ch.isDigit()) {
+					points.forEach { p -> glyphs.add(Glyph(ch, p.x, p.y)) }
+				}
 			}
 		}
 
-		if (allMatches.isEmpty()) {
-			if (debugMode) game.printToLog("[WARNING] [$trainingName] No matches found to construct integer value.", tag = tag)
+		if (glyphs.isEmpty()) {
+			if (debugMode) game.printToLog("[WARNING] [$trainingName] [$statName] No glyphs to construct integer value.", tag = tag)
 			return 0
 		}
 
-		// Sort matches by x-coordinate (left to right).
-		allMatches.sortBy { it.second.x }
-		if (debugMode) game.printToLog("[DEBUG] [$trainingName] Sorted matches: ${allMatches.map { "${it.first}@(${it.second.x}, ${it.second.y})" }}", tag = tag)
+		// 2) Sort by X (left->right) to reconstruct reading order
+		glyphs.sortBy { it.x }
 
-		// Construct the string representation and then validate the format: start with + and contain only digits after.
-		val constructedString = allMatches.joinToString("") { it.first }
-		game.printToLog("[INFO] [$trainingName] Constructed string: \"$constructedString\".", tag = tag)
+		// For visibility in logs
+		val constructedString = glyphs.joinToString(separator = "") { it.ch.toString() }
+		game.printToLog("[INFO] [$trainingName] [$statName] Constructed glyph sequence: \"$constructedString\".", tag = tag)
+		if (debugMode) {
+			game.printToLog(
+				"[DEBUG] [$trainingName] [$statName] Sorted glyphs: ${
+					glyphs.joinToString { "${it.ch}@(${it.x.toInt()},${it.y.toInt()})" }
+				}",
+				tag = tag
+			)
+		}
 
-		// Extract the numeric part and convert to integer.
-		return try {
-			val numericPart = if (constructedString.startsWith("+") && constructedString.substring(1).isNotEmpty()) {
-				constructedString.substring(1)
-			} else {
-				constructedString
+		// Benign handling: if we saw a '+' but no digits at all, return 0 quietly.
+		val hasPlus = glyphs.any { it.ch == '+' }
+		val hasDigit = glyphs.any { it.ch.isDigit() }
+		if (hasPlus && !hasDigit) {
+			if (debugMode) game.printToLog("[DEBUG] [$trainingName] [$statName] Only '+' detected and no digits; returning 0.", tag = tag)
+			return 0
+		}
+
+		// 3) Candidate A: from the first leading '+' take consecutive digits to its right
+		fun candidateAfterLeadingPlus(): String? {
+			val idx = glyphs.indexOfFirst { it.ch == '+' }
+			if (idx == -1) return null
+			// '+' must be leftmost in the intended token; if there are digits before it, ignore them here.
+			val sb = StringBuilder()
+			for (i in (idx + 1) until glyphs.size) {
+				val ch = glyphs[i].ch
+				when {
+					ch.isDigit() -> sb.append(ch)
+					ch == '+' -> continue   // tolerate extra '+' and keep scanning to the right
+					else -> break
+				}
 			}
+			return sb.toString().takeIf { it.isNotEmpty() }
+		}
 
-			val result = numericPart.toInt()
-			if (debugMode) game.printToLog("[DEBUG] [$trainingName] Successfully constructed integer value: $result from \"$constructedString\".", tag = tag)
+		// 4) Candidate B: longest consecutive run of digits anywhere
+		fun longestDigitRun(): String? {
+			var bestStart = -1
+			var bestLen = 0
+			var curStart = -1
+			var curLen = 0
+			for (i in glyphs.indices) {
+				if (glyphs[i].ch.isDigit()) {
+					if (curLen == 0) curStart = i
+					curLen++
+					if (curLen > bestLen) {
+						bestLen = curLen
+						bestStart = curStart
+					}
+				} else {
+					curLen = 0
+				}
+			}
+			return if (bestLen > 0) {
+				buildString(bestLen) {
+					for (i in bestStart until (bestStart + bestLen)) append(glyphs[i].ch)
+				}
+			} else null
+		}
+
+		// 5) Candidate C: just the digits (fallback)
+		fun allDigits(): String? {
+			val s = glyphs.asSequence().map { it.ch }.filter { it.isDigit() }.joinToString("")
+			return s.ifEmpty { null }
+		}
+
+		val numericPart =
+			candidateAfterLeadingPlus()
+				?: longestDigitRun()
+				?: allDigits()
+
+		if (numericPart == null) {
+			// No '+' and no usable digit run: this is still a benign failure in OCR context.
+			if (debugMode) game.printToLog("[DEBUG] [$trainingName] [$statName] No digits found in \"$constructedString\"; returning 0.", tag = tag)
+			return 0
+		}
+
+		val result = numericPart.toIntOrNull()
+		return if (result != null) {
+			if (debugMode) game.printToLog("[DEBUG] [$trainingName] [$statName] Parsed value: $result from \"$constructedString\" using \"$numericPart\".", tag = tag)
 			result
-		} catch (e: NumberFormatException) {
-			game.printToLog("[ERROR] [$trainingName] Could not convert \"$constructedString\" to integer: ${e.stackTraceToString()}", tag = tag, isError = true)
+		} else {
+			// No exception thrown; keep logs clean and non-fatal.
+			game.printToLog("[WARNING] [$trainingName] [$statName] \"$numericPart\" could not be parsed as Int from \"$constructedString\"; returning 0.", tag = tag)
 			0
 		}
 	}
+
+//	/**
+//	 * Constructs the final integer value from matched template locations of numbers by analyzing spatial arrangement.
+//	 *
+//	 * The function is designed for OCR-like scenarios where individual character templates
+//	 * are matched separately and need to be reconstructed into a complete number.
+//	 *
+//	 * If matchResults contains: {"+" -> [(10, 20)], "1" -> [(15, 20)], "2" -> [(20, 20)]}, it returns: 12 (from string "+12").
+//	 *
+//	 * @param matchResults Map of template names (e.g., "0", "1", "2", "+") to their match locations.
+//	 *
+//	 * @return The constructed integer value or -1 if it failed.
+//	 */
+//	private fun constructIntegerFromMatches(trainingName: String, matchResults: Map<String, MutableList<Point>>): Int {
+//		// Collect all matches with their template names.
+//		val allMatches = mutableListOf<Pair<String, Point>>()
+//		matchResults.forEach { (templateName, points) ->
+//			points.forEach { point ->
+//				allMatches.add(Pair(templateName, point))
+//			}
+//		}
+//
+//		if (allMatches.isEmpty()) {
+//			if (debugMode) game.printToLog("[WARNING] [$trainingName] No matches found to construct integer value.", tag = tag)
+//			return 0
+//		}
+//
+//		// Sort matches by x-coordinate (left to right).
+//		allMatches.sortBy { it.second.x }
+//		if (debugMode) game.printToLog("[DEBUG] [$trainingName] Sorted matches: ${allMatches.map { "${it.first}@(${it.second.x}, ${it.second.y})" }}", tag = tag)
+//
+//		// Construct the string representation and then validate the format: start with + and contain only digits after.
+//		val constructedString = allMatches.joinToString("") { it.first }
+//		game.printToLog("[INFO] [$trainingName] Constructed string: \"$constructedString\".", tag = tag)
+//
+//		// Extract the numeric part and convert to integer.
+//		return try {
+//			val numericPart = if (constructedString.startsWith("+") && constructedString.substring(1).isNotEmpty()) {
+//				constructedString.substring(1)
+//			} else {
+//				constructedString
+//			}
+//
+//			val result = numericPart.toInt()
+//			if (debugMode) game.printToLog("[DEBUG] [$trainingName] Successfully constructed integer value: $result from \"$constructedString\".", tag = tag)
+//			result
+//		} catch (e: NumberFormatException) {
+//			game.printToLog("[ERROR] [$trainingName] Could not convert \"$constructedString\" to integer: ${e.stackTraceToString()}", tag = tag, isError = true)
+//			0
+//		}
+//	}
 
 	/**
 	 * Calculates the Pearson correlation coefficient between two arrays of pixel values.
