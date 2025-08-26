@@ -2452,7 +2452,7 @@ class ImageUtils(context: Context, private val game: Game) {
 						val finalValue = constructIntegerFromMatches(statName, trainingName, matchResults)
 						threadSafeResults[i] = finalValue
 						game.printToLog(
-							"[INFO] [$trainingName] $statName region final constructed value: $finalValue.",
+							"[INFO] [$trainingName - $statName] region final constructed value: $finalValue.",
 							tag = tag
 						)
 
@@ -2838,14 +2838,18 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
-	 * Constructs the final integer value from matched template locations by analyzing spatial order.
+	 * Constructs the final integer value from matched template locations of numbers by analyzing spatial arrangement.
 	 *
-	 * Rules:
-	 *  - Prefer sequences that look like "+<digits>" where '+' is the leftmost element.
-	 *  - If no leading '+', take the longest consecutive run of digits.
-	 *  - Last resort: take all digits found.
+	 * The function is designed for OCR-like scenarios where individual character templates
+	 * are matched separately and need to be reconstructed into a complete number.
 	 *
-	 * Note: returns 0 on failure (aligns with current callers). Update callers if you prefer -1.
+	 * If matchResults contains: {"+" -> [(10, 20)], "1" -> [(15, 20)], "2" -> [(20, 20)]}, it returns: 12 (from string "+12").
+	 *
+	 * @param statName Name of the stat being processed for the current `trainingName` (logging/debugging).
+	 * @param trainingName Name of the training category being processed (logging/debugging).
+	 * @param matchResults Map of template names (e.g., "0", "1", "2", "+") to their match locations.
+	 *
+	 * @return The constructed integer value or -1 if it failed.
 	 */
 	private fun constructIntegerFromMatches(
 		statName: String,
