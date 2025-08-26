@@ -25,6 +25,8 @@ import com.steve1316.uma_android_automation.MainActivity
 import com.steve1316.uma_android_automation.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /**
  * Contains the Accessibility service that will allow the bot to programmatically perform gestures on the screen.
@@ -92,37 +94,36 @@ class MyAccessibilityService : AccessibilityService() {
 	}
 
 	/**
-	 * Displays a confirmation dialog over the current screen.
-	 * This method is thread-safe and can be called from any thread.
+	 * Displays a modal confirmation dialog and suspends the coroutine until the user responds.
 	 *
 	 * @param message The message to display to the user.
-	 * @param onAccept A lambda function to be executed when the user clicks "Accept".
+	 * @return `true` if the user accepted, `false` if they cancelled.
 	 */
 	@SuppressLint("ClickableViewAccessibility", "InflateParams")
-	fun showConfirmationOverlay(message: String, onAccept: () -> Int) {
-		// Use a Handler to post the UI work to the main thread.
-		val mainHandler = Handler(Looper.getMainLooper())
-		mainHandler.post {
-			// Prevent adding multiple overlays.
+	suspend fun showConfirmationOverlay(message: String): Boolean = suspendCancellableCoroutine { continuation ->
+		// Ensure this runs on the main thread
+		Handler(Looper.getMainLooper()).post {
 			if (confirmationOverlayView != null) {
+				// If a dialog is already showing, we can't show another.
+				// Resume with 'false' to indicate cancellation/failure.
+				if (continuation.isActive) {
+					continuation.resume(false)
+				}
 				return@post
 			}
 
 			val layoutInflater = LayoutInflater.from(this)
 			confirmationOverlayView = layoutInflater.inflate(R.layout.overlay_confirmation, null)
 
-			// Define layout parameters for the overlay.
 			val params = WindowManager.LayoutParams(
+				// ... (same params as before)
 				WindowManager.LayoutParams.WRAP_CONTENT,
 				WindowManager.LayoutParams.WRAP_CONTENT,
 				WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
 				0,
 				PixelFormat.TRANSLUCENT
-			).apply {
-				gravity = Gravity.CENTER
-			}
+			).apply { gravity = Gravity.CENTER }
 
-			// Configure the view content and listeners.
 			confirmationOverlayView?.let { view ->
 				val messageTextView = view.findViewById<TextView>(R.id.tv_overlay_message)
 				val acceptButton = view.findViewById<Button>(R.id.btn_overlay_accept)
@@ -131,19 +132,26 @@ class MyAccessibilityService : AccessibilityService() {
 				messageTextView.text = message
 
 				acceptButton.setOnClickListener {
-					// The onAccept lambda will be called from the background thread where it was defined,
-					// unless the UI click listener forces it to the main thread.
-					// This is generally safe.
-					onAccept()
 					hideConfirmationOverlay()
+					// Resume the coroutine with the result 'true'
+					if (continuation.isActive) {
+						continuation.resume(true)
+					}
 				}
 
 				cancelButton.setOnClickListener {
-					Log.d(tag, "User cancelled the action.")
+					hideConfirmationOverlay()
+					// Resume the coroutine with the result 'false'
+					if (continuation.isActive) {
+						continuation.resume(false)
+					}
+				}
+
+				// If the coroutine is cancelled while the dialog is shown, clean up.
+				continuation.invokeOnCancellation {
 					hideConfirmationOverlay()
 				}
 
-				// Add the view to the window.
 				windowManager.addView(view, params)
 			}
 		}

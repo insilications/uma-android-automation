@@ -395,7 +395,7 @@ class Game(val myContext: Context) {
 	/**
 	 * Handles the test to perform OCR on training failure chances for all 5 of the trainings on display.
 	 */
-	fun startComprehensiveTrainingFailureOCRTest() {
+	suspend fun startComprehensiveTrainingFailureOCRTest() {
 		printToLog("\n[TEST] Now beginning Comprehensive Training Failure OCR test on the Training screen for all 5 trainings on display.")
 		printToLog("[TEST] Note that this test is dependent on having the correct scale.")
 		analyzeTrainings(test = true)
@@ -407,13 +407,8 @@ class Game(val myContext: Context) {
 		if (trainingSelected != "") {
 			printTrainingMap()
 
-			val actionToPerform = {
-				Log.d(tag, "User accepted training.")
-			}
-
 			gestureUtils.showConfirmationOverlay(
 				message = "[TRAINING] Would execute the $trainingSelected Training.",
-				onAccept = actionToPerform
 			)
 
 			printToLog("[TRAINING] Would execute the $trainingSelected Training.")
@@ -668,8 +663,9 @@ class Game(val myContext: Context) {
 	/**
 	 * The entry point for handling Training.
 	 */
-	fun handleTraining() {
+	suspend fun handleTraining(): Boolean {
 		printToLog("\n[TRAINING] Starting Training process...")
+		var trainingRejected = false
 
 		// Enter the Training screen.
 		if (findAndTapImage("training_option", region = imageUtils.regionBottomHalf)) {
@@ -690,7 +686,7 @@ class Game(val myContext: Context) {
 				}
 			} else {
 				// Now select the training option with the highest weight.
-				executeTraining()
+				trainingRejected = executeTraining()
 
 				firstTrainingCheck = false
 			}
@@ -700,6 +696,8 @@ class Game(val myContext: Context) {
 		} else {
 			printToLog("[ERROR] Cannot start the Training process. Moving on...", isError = true)
 		}
+
+		return trainingRejected
 	}
 
 	/**
@@ -1252,16 +1250,31 @@ class Game(val myContext: Context) {
 	/**
 	 * Execute the training with the highest stat weight.
 	 */
-	private fun executeTraining() {
+	private suspend fun executeTraining(): Boolean {
 		printToLog("\n********************")
 		printToLog("[TRAINING] Now starting process to execute training...")
 		val trainingSelected = recommendTraining()
-		
+		var trainingRejected = false
+
 		if (trainingSelected != "") {
 			printTrainingMap()
-			printToLog("[TRAINING] Executing the $trainingSelected Training.")
-			findAndTapImage("training_${trainingSelected.lowercase()}", region = imageUtils.regionBottomHalf, taps = 3)
-			printToLog("[TRAINING] Process to execute training completed.")
+
+			val userAccepted = gestureUtils.showConfirmationOverlay(
+				message = "[TRAINING] Would execute the $trainingSelected Training.",
+			)
+
+			if (userAccepted) {
+				printToLog("[TRAINING] User accepted executing the $trainingSelected Training.")
+				findAndTapImage(
+					"training_${trainingSelected.lowercase()}",
+					region = imageUtils.regionBottomHalf,
+					taps = 3
+				)
+				printToLog("[TRAINING] Process to execute training completed.")
+			} else {
+				printToLog("[TRAINING] User rejected executing the $trainingSelected Training.")
+				trainingRejected = true
+			}
 		} else {
 			printToLog("[TRAINING] Conditions have not been met so training will not be done.")
 		}
@@ -1270,6 +1283,8 @@ class Game(val myContext: Context) {
 
 		// Now reset the Training map.
 		trainingMap.clear()
+
+		return trainingRejected
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2254,7 +2269,7 @@ class Game(val myContext: Context) {
 	 *
 	 * @return True if all automation goals have been met. False otherwise.
 	 */
-	fun start(): Boolean {
+	suspend fun start(): Boolean {
 		// Print current app settings at the start of the run.
 		SettingsPrinter.printCurrentSettings(myContext) { message ->
 			printToLog(message)

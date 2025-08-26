@@ -34,7 +34,7 @@ open class Campaign(val game: Game) {
 	/**
 	 * Main automation loop that handles all shared logic.
 	 */
-	fun start() {
+	suspend fun start() {
 		while (true) {
 			////////////////////////////////////////////////
 			// Most bot operations start at the Main screen.
@@ -46,19 +46,28 @@ open class Campaign(val game: Game) {
 
 					// If the required skill points has been reached, stop the bot.
 					if (game.enableSkillPointCheck && game.imageUtils.determineSkillPoints() >= game.skillPointsRequired) {
-						game.printToLog("\n[END] Bot has acquired the set amount of skill points. Exiting now...", tag = tag)
+						game.printToLog(
+							"\n[END] Bot has acquired the set amount of skill points. Exiting now...",
+							tag = tag
+						)
 						game.notificationMessage = "Bot has acquired the set amount of skill points."
 						break
 					}
 
 					// If force racing is enabled, skip all other activities and go straight to racing
 					if (game.enableForceRacing) {
-						game.printToLog("\n[INFO] Force racing enabled - skipping all other activities and going straight to racing.", tag = tag)
+						game.printToLog(
+							"\n[INFO] Force racing enabled - skipping all other activities and going straight to racing.",
+							tag = tag
+						)
 						needToRace = true
 					} else {
 						// If the bot detected a injury, then rest.
 						if (game.checkInjury()) {
-							game.printToLog("[INFO] A infirmary visit was attempted in order to heal an injury.", tag = tag)
+							game.printToLog(
+								"[INFO] A infirmary visit was attempted in order to heal an injury.",
+								tag = tag
+							)
 							game.findAndTapImage("ok", region = game.imageUtils.regionMiddle)
 							game.wait(3.0)
 							game.skipRacing = false
@@ -67,15 +76,19 @@ open class Campaign(val game: Game) {
 							game.skipRacing = false
 						} else if (!game.checkExtraRaceAvailability()) {
 							game.printToLog("[INFO] Training due to it not being an extra race day.", tag = tag)
-							game.handleTraining()
-							game.skipRacing = false
+							if (!game.handleTraining()) {
+								game.skipRacing = false
+							} else {
+								game.skipRacing = false
+								break
+							}
 						} else {
 							needToRace = true
 						}
 					}
 				}
 
-				 if (game.encounteredRacingPopup || needToRace) {
+				if (game.encounteredRacingPopup || needToRace) {
 					game.printToLog("[INFO] Racing by default.", tag = tag)
 					if (!game.skipRacing && !handleRaceEvents()) {
 						if (game.detectedMandatoryRaceCheck) {
@@ -85,7 +98,9 @@ open class Campaign(val game: Game) {
 						}
 						game.findAndTapImage("back", tries = 1, region = game.imageUtils.regionBottomHalf)
 						game.skipRacing = !game.enableForceRacing
-						game.handleTraining()
+						if (game.handleTraining()) {
+							break
+						}
 					}
 				}
 			} else if (game.checkTrainingEventScreen()) {
@@ -120,7 +135,10 @@ open class Campaign(val game: Game) {
 				game.skipRacing = false
 				continue
 			} else {
-				game.printToLog("[INFO] Did not detect the bot being at the following screens: Main, Training Event, Inheritance, Mandatory Race Preparation, Racing and Career End.", tag = tag)
+				game.printToLog(
+					"[INFO] Did not detect the bot being at the following screens: Main, Training Event, Inheritance, Mandatory Race Preparation, Racing and Career End.",
+					tag = tag
+				)
 			}
 
 			// Various miscellaneous checks
