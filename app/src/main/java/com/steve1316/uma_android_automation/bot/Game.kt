@@ -930,12 +930,14 @@ class Game(val myContext: Context) {
 		 * @return A score representing relationship-building value.
 		 */
 		fun scoreFriendshipTraining(training: Training): Double {
+			val trainingName: String = training.name
+
 			// Ignore the blacklist in favor of making sure we build up the relationship bars as fast as possible.
-			printToLog("\n[TRAINING] Starting process to score ${training.name} Training with a focus on building relationship bars.")
+			printToLog("\n[TRAINING - $trainingName] Starting process to score training with a focus on building relationship bars")
 
 			val barResults = training.relationshipBars
 			if (barResults.isEmpty()) {
-				printToLog("[TRAINING] ${training.name} Training has no relationship bars.")
+				printToLog("[TRAINING - $trainingName] No relationship bars")
 				return Double.NEGATIVE_INFINITY
 			}
 
@@ -950,7 +952,7 @@ class Game(val myContext: Context) {
 				score += contribution
 			}
 
-			printToLog("[TRAINING] ${training.name} Training has a score of ${decimalFormat.format(score)} with a focus on building relationship bars.")
+			printToLog("[TRAINING - $trainingName] Score of ${decimalFormat.format(score)} with a focus on building relationship bars")
 			return score
 		}
 
@@ -970,6 +972,7 @@ class Game(val myContext: Context) {
 		 * @return A normalized score (0-100) representing stat efficiency.
 		 */
 		fun calculateStatEfficiencyScore(training: Training, target: IntArray): Double {
+			val trainingName: String = training.name
 			var score = 100.0
 
 			for ((index, stat) in trainings.withIndex()) {
@@ -1002,12 +1005,12 @@ class Game(val myContext: Context) {
 						0.5 // Lower weight for non-prioritized stats.
 					}
 
-					Log.d(tag, "[DEBUG] Priority Weight: $priorityWeight")
+					Log.d(tag, "[TRAINING - $trainingName] Priority Weight: $priorityWeight")
 
 					// Calculate efficiency based on remaining gap between the current stat and the target.
 					var efficiency = if (remaining > 0) {
 						// Stat is below target, but reduce the bonus when very close to the target.
-						Log.d(tag, "[DEBUG] Giving bonus for remaining efficiency.")
+						Log.d(tag, "[TRAINING - $trainingName] Giving bonus for remaining efficiency")
 						val gapRatio = remaining.toDouble() / targetStat
 						val targetBonus = when {
 							gapRatio > 0.1 -> 1.5
@@ -1017,12 +1020,12 @@ class Game(val myContext: Context) {
 						targetBonus + (statGain.toDouble() / remaining).coerceAtMost(1.0)
 					} else {
 						// Stat is above target, give a diminishing bonus based on how much over.
-						Log.d(tag, "[DEBUG] Stat is above target so giving diminishing bonus.")
+						Log.d(tag, "[TRAINING - $trainingName] Stat is above target so giving diminishing bonus")
 						val overageRatio = (statGain.toDouble() / (-remaining + statGain))
 						1.0 + overageRatio
 					}
 
-					Log.d(tag, "[DEBUG] Efficiency: $efficiency")
+					Log.d(tag, "[TRAINING - $trainingName] Efficiency: $efficiency")
 
 					// Apply Spark stat target focus when enabled.
 					if (focusOnSparkStatTarget) {
@@ -1040,7 +1043,7 @@ class Game(val myContext: Context) {
 
 					score += statGain * 2
 					score += (statGain * 2) * (efficiency * priorityWeight)
-					Log.d(tag, "[DEBUG] Score: $score")
+					Log.d(tag, "[TRAINING - $trainingName] Score: $score")
 				}
 			}
 
@@ -1138,6 +1141,7 @@ class Game(val myContext: Context) {
 					MediaProjectionService.displayHeight - (MediaProjectionService.displayHeight / 3)
 				)
 			)
+			Log.d(tag, "[TRAINING - ${training.name}] Found match locations for $skillHintLocations")
 			score += 100.0 * skillHintLocations.size
 
 			return score.coerceIn(0.0, 1000.0)
@@ -1161,18 +1165,19 @@ class Game(val myContext: Context) {
 		 */
 		fun scoreStatTraining(training: Training): Double {
 			if (training.name in blacklist) return 0.0
+			val trainingName: String = training.name
 
 			// Don't score for stats that are maxed or would be maxed.
-			if ((disableTrainingOnMaxedStat && currentStatsMap[training.name]!! >= currentStatCap) ||
+			if ((disableTrainingOnMaxedStat && currentStatsMap[trainingName]!! >= currentStatCap) ||
 				(currentStatsMap.getOrDefault(
-					training.name,
+					trainingName,
 					0
-				) + training.statGains[trainings.indexOf(training.name)] >= currentStatCap)
+				) + training.statGains[trainings.indexOf(trainingName)] >= currentStatCap)
 			) {
 				return 0.0
 			}
 
-			printToLog("\n[TRAINING] Starting scoring for ${training.name} Training.")
+			printToLog("\n[TRAINING - $trainingName] Starting scoring")
 
 			val target = statTargetsByDistance[preferredDistance] ?: intArrayOf(600, 600, 600, 300, 300)
 
@@ -1206,9 +1211,9 @@ class Game(val myContext: Context) {
 			}
 
 			printToLog(
-				"[TRAINING] Scores | Current Stat: ${currentStatsMap[training.name]}, Target Stat: ${
+				"[TRAINING - $trainingName] Scores | Target Stat: ${
 					target[trainings.indexOf(
-						training.name
+						trainingName
 					)]
 				}, " +
 						"Stat Efficiency: ${decimalFormat.format(statScore)}, Relationship: ${
@@ -1220,10 +1225,10 @@ class Game(val myContext: Context) {
 			)
 
 			// Normalize the score.
-			val normalizedScore = (totalScore / maxPossibleScore * 100.0).coerceIn(1.0, 1000.0)
+			val normalizedScore: Double = (totalScore / maxPossibleScore * 100.0).coerceIn(1.0, 1000.0)
 
 			printToLog(
-				"[TRAINING] Enhanced final score for ${training.name} Training: ${
+				"[TRAINING - $trainingName] Enhanced final score: ${
 					decimalFormat.format(
 						normalizedScore
 					)

@@ -469,6 +469,16 @@ class ImageUtils(context: Context, private val game: Game) {
 			val width = region[2].coerceAtMost(sourceBitmap.width - x)
 			val height = region[3].coerceAtMost(sourceBitmap.height - y)
 
+			Log.d(
+				tag,
+				"[DEBUG] matchAll - sourceBitmap.width: ${sourceBitmap.width}, sourceBitmap.height: ${sourceBitmap.height}"
+			)
+			Log.d(
+				tag,
+				"[DEBUG] matchAll - sourceBitmap.width - x: ${sourceBitmap.width - x}, sourceBitmap.height - y: ${sourceBitmap.height - y}"
+			)
+			Log.d(tag, "[DEBUG] matchAll - x: $x, y: $y, width: $width, height: $height")
+
 			createSafeBitmap(sourceBitmap, x, y, width, height, "matchAll region crop") ?: sourceBitmap
 		} else {
 			sourceBitmap
