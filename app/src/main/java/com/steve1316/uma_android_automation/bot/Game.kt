@@ -105,7 +105,7 @@ class Game(val myContext: Context) {
 		val name: String,
 		val statGains: IntArray,
 		val failureChance: Int,
-		val relationshipBars: ArrayList<ImageUtils.BarFillResult>
+		val relationshipBars: ArrayList<ImageUtils.RelationshipBarResult>
 	) {
 		override fun equals(other: Any?): Boolean {
 			if (this === other) return true
@@ -738,14 +738,14 @@ class Game(val myContext: Context) {
 				printToLog("[TRAINING] $failureChance% within acceptable range of ${maximumFailureChance}%. Proceeding to acquire all other percentages and total stat increases...")
 
 				// Iterate through every training that is not blacklisted.
-				trainings.forEachIndexed { index, training ->
-					if (blacklist.getOrElse(index) { "" } == training) {
-						printToLog("[TRAINING] Skipping $training training due to being blacklisted.")
+				trainings.forEachIndexed { index, trainingName ->
+					if (blacklist.getOrElse(index) { "" } == trainingName) {
+						printToLog("[TRAINING] Skipping $trainingName training due to being blacklisted.")
 						return@forEachIndexed
 					}
 
 					// Select the Training to make it active except Speed Training since that is already selected at the start.
-					val newX: Double = when (training) {
+					val newX: Double = when (trainingName) {
 						"Stamina" -> {
 							280.0
 						}
@@ -769,7 +769,7 @@ class Game(val myContext: Context) {
 
 					if (newX != 0.0) {
 						if (imageUtils.isTablet) {
-							if (training == "Stamina") {
+							if (trainingName == "Stamina") {
 								tap(
 									speedStatTextLocation.x + imageUtils.relWidth((newX * 1.05).toInt()),
 									speedStatTextLocation.y + imageUtils.relHeight((319 * 1.50).toInt()),
@@ -801,7 +801,7 @@ class Game(val myContext: Context) {
 					// Variables to store results from parallel threads.
 					var statGains: IntArray = intArrayOf()
 					var failureChance: Int = -1
-					var relationshipBars: ArrayList<ImageUtils.BarFillResult> = arrayListOf()
+					var relationshipBars: ArrayList<ImageUtils.RelationshipBarResult> = arrayListOf()
 
 					// Get the Points and source Bitmap beforehand before starting the threads to make them safe for parallel processing.
 					val (skillPointsLocation, sourceBitmapFromSkillsPoints) = imageUtils.findImage(
@@ -819,7 +819,7 @@ class Game(val myContext: Context) {
 					Thread {
 						try {
 							statGains = imageUtils.determineStatGainFromTraining(
-								training,
+								trainingName,
 								sourceBitmapFromSkillsPoints,
 								skillPointsLocation!!
 							)
@@ -838,7 +838,7 @@ class Game(val myContext: Context) {
 					Thread {
 						try {
 							failureChance = imageUtils.findTrainingFailureChance(
-								training,
+								trainingName,
 								sourceBitmapFromTrainingFailureChance,
 								trainingSelectionLocation!!
 							)
@@ -856,7 +856,8 @@ class Game(val myContext: Context) {
 					// Thread 3: Analyze relationship bars.
 					Thread {
 						try {
-							relationshipBars = imageUtils.analyzeRelationshipBars(sourceBitmapFromSkillsPoints)
+							relationshipBars =
+								imageUtils.analyzeRelationshipBars(trainingName, sourceBitmapFromSkillsPoints)
 						} catch (e: Exception) {
 							printToLog(
 								"[ERROR] Error in analyzeRelationshipBars: ${e.stackTraceToString()}",
@@ -876,12 +877,12 @@ class Game(val myContext: Context) {
 					}
 
 					val newTraining = Training(
-						name = training,
+						name = trainingName,
 						statGains = statGains,
 						failureChance = failureChance,
 						relationshipBars = relationshipBars
 					)
-					trainingMap.put(training, newTraining)
+					trainingMap.put(trainingName, newTraining)
 				}
 
 				printToLog("[TRAINING] Process to analyze all 5 Trainings complete.")
@@ -1135,28 +1136,15 @@ class Game(val myContext: Context) {
 			}
 
 			// Bonuses for skill hints.
-//			val skillHintLocations = imageUtils.findAll(
-//				"stat_skill_hint",
-//				region = intArrayOf(
-//					MediaProjectionService.displayWidth - (MediaProjectionService.displayWidth / 3),
-//					0,
-//					(MediaProjectionService.displayWidth / 3),
-//					MediaProjectionService.displayHeight - (MediaProjectionService.displayHeight / 3)
-//				)
-//			)
-			val skillHintLocations = imageUtils.findAllStatSkillHints(
-				training.name,
-				"stat_skill_hint",
-				region = intArrayOf(
-					MediaProjectionService.displayWidth - (MediaProjectionService.displayWidth / 3),
-					0,
-					(MediaProjectionService.displayWidth / 3),
-					MediaProjectionService.displayHeight - (MediaProjectionService.displayHeight / 3)
-				)
-			)
-			Log.d(tag, "[TRAINING - ${training.name}] Found Skill Hint Locations: $skillHintLocations")
-			score += 100.0 * skillHintLocations.size
-
+			for (bar in training.relationshipBars) {
+				if (bar.skillHintLocation != null) {
+					score += 100.0
+					Log.d(
+						tag,
+						"[TRAINING - ${training.name}] Found Skill Hint Locations: ${bar.skillHintLocation}"
+					)
+				}
+			}
 			return score.coerceIn(0.0, 1000.0)
 		}
 

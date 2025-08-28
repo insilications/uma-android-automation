@@ -139,10 +139,11 @@ class ImageUtils(context: Context, private val game: Game) {
 		val confidence: Double
 	)
 
-	data class BarFillResult(
+	data class RelationshipBarResult(
 		val fillPercent: Double,
 		val filledSegments: Int,
-		val dominantColor: String
+		val dominantColor: String,
+		val skillHintLocation: Point?
 	)
 
 	////////////////////////////////////////////////////////////////////
@@ -528,7 +529,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_BGR2GRAY)
 			Core.split(templateMat, splitChannels)
 			splitChannels[3].copyTo(alphaMask) // 4th channel is alpha
-			Core.compare(alphaMask, Scalar(200.0), validPixels, Core.CMP_GT)
+			Core.compare(alphaMask, Scalar(230.0), validPixels, Core.CMP_GT)
 
 			val maskNonZeroCount = Core.countNonZero(validPixels)
 			if (maskNonZeroCount == 0) {
@@ -649,66 +650,56 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
-	 * Search through a specified region of the source screenshot for all valid matches to a template image,
+	 * Search through the source screenshot for the first valid match to a template image,
 	 * leveraging transparency for accurate, non-rectangular matching.
 	 *
 	 * This method uses a reliable, multi-stage approach:
 	 * 1. A single masked template match is performed to generate a confidence map.
-	 * 2. A non-maximum suppression loop iterates through the confidence map to find all potential match peaks.
-	 * 3. Each peak is subjected to two rigorous validation checks against the source image:
+	 * 2. The confidence map is scanned for the highest confidence peak.
+	 * 3. The peak is subjected to two rigorous validation checks against the source image:
 	 *    a) Pixel Match Ratio: Ensures a high percentage of non-transparent pixels match within a tolerance.
 	 *    b) Masked Correlation: Calculates a Pearson correlation coefficient on non-transparent pixels only.
-	 * 4. This avoids the pitfalls of modifying the source image and is highly efficient for finding multiple objects.
+	 * 4. The function returns immediately after the first valid match is found.
 	 *
 	 * NOTE: This function requires the templateBitmap to have a transparency channel (4-channel RGBA).
 	 * It also assumes the template is at the correct scale; multi-scale searching is not performed.
 	 *
 	 * @param trainingName Name of the training category being processed (logging/debugging).
 	 * @param sourceBitmap The full source image to search within.
-	 * @param templateName File name of the template image (logging/debugging).
 	 * @param templateBitmap The template image to find. Must be a 4-channel Bitmap (e.g., ARGB_8888).
-	 * @param region An array specifying the [x, y, width, height] of the source screenshot to search in.
-	 *               If the region is [0, 0, 0, 0] or invalid, the full image is searched.
 	 * @param minMatchConfidence The minimum correlation score from the initial `matchTemplate` call to be considered a potential match (range [0.0, 1.0]).
 	 * @param minPixelMatchRatio The minimum ratio of pixels that must match within the `pixelTolerance` for a match to be considered valid (range [0.0, 1.0]).
 	 * @param minPixelCorrelation The minimum Pearson correlation coefficient on the masked region for a match to be valid (range [-1.0, 1.0]).
-	 * @return An ArrayList of Point objects representing the center coordinates of each valid match found.
+	 * @return A Point containing the center coordinates of the first valid match, or null if no match is found.
 	 */
 	private fun matchAllStatSkillHints(
 		trainingName: String,
 		sourceBitmap: Bitmap,
-		templateName: String,
 		templateBitmap: Bitmap,
-		region: IntArray = intArrayOf(0, 0, 0, 0),
-		minMatchConfidence: Double = 0.93,
+		minMatchConfidence: Double = 0.95,
 		minPixelMatchRatio: Double = 0.9,
 		minPixelCorrelation: Double = 0.85
-	): java.util.ArrayList<Point> {
+	): Point? {
 		val pixelTolerance = 25.0 // Intensity tolerance [0..255] for "equal" pixels
-		val results = java.util.ArrayList<Point>()
+		var result: Point? = null
 
 		// 1. Prepare Source and Template Mats
-		val fullSourceMat = Mat()
-		Utils.bitmapToMat(sourceBitmap, fullSourceMat)
-		if (fullSourceMat.empty()) {
+		val workingMat = Mat()
+		// With `unPremultiply = false` we are assuming that the pixels of the `sourceBitmap` capture are always 100% opaque
+		// Scenarios with semi-transparent pixels:
+		// System UI Elements: notification shade, navigation bar, or the status bar can be translucent
+		// Toasts: pop-ups are often semi-transparent
+		// Dialogs: pixels of the background are not fully opaque when a dialog box dims the background
+		// PiP Windows: Pixels used for anti-aliasing along the curved edges have alphas between 0 and 255
+		// In-App UI: Translucent overlays or floating action buttons with shadows are not fully opaque
+		Utils.bitmapToMat(sourceBitmap, workingMat, false)
+		if (workingMat.empty()) {
 			Log.e(tag, "[ERROR] matchAllStatSkillHints - $trainingName - Could not convert sourceBitmap to Mat.")
-			return results
+			return null
 		}
 
-		// Handle region cropping
-		val searchRegionRect = if (region.size == 4 && region[2] > 0 && region[3] > 0) {
-			val x = max(0, region[0]).coerceAtMost(fullSourceMat.cols() - 1)
-			val y = max(0, region[1]).coerceAtMost(fullSourceMat.rows() - 1)
-			val width = region[2].coerceAtMost(fullSourceMat.cols() - x)
-			val height = region[3].coerceAtMost(fullSourceMat.rows() - y)
-			Rect(x, y, width, height)
-		} else {
-			Rect(0, 0, fullSourceMat.cols(), fullSourceMat.rows())
-		}
-
-		val workingMat = Mat(fullSourceMat, searchRegionRect)
 		val srcGray = Mat()
-		Imgproc.cvtColor(workingMat, srcGray, Imgproc.COLOR_BGR2GRAY)
+		Imgproc.cvtColor(workingMat, srcGray, Imgproc.COLOR_RGBA2GRAY)
 
 		// For debug visualization, draw boxes on a copy
 		val debugViz: Mat = srcGray.clone()
@@ -727,7 +718,7 @@ class ImageUtils(context: Context, private val game: Game) {
 					tag,
 					"[ERROR] matchAllStatSkillHints - $trainingName - Template must have transparency (4 channels)."
 				)
-				return results
+				return null
 			}
 
 			// Clamp template size to source region size
@@ -736,13 +727,13 @@ class ImageUtils(context: Context, private val game: Game) {
 					tag,
 					"[WARN] matchAllStatSkillHints - $trainingName - Template is larger than the search region. It will not be found."
 				)
-				return results
+				return null
 			}
 
-			Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_BGR2GRAY)
+			Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_RGBA2GRAY)
 			Core.split(templateMat, splitChannels)
 			splitChannels[3].copyTo(alphaMask) // 4th channel is alpha
-			Core.compare(alphaMask, Scalar(200.0), validPixels, Core.CMP_GT)
+			Core.compare(alphaMask, Scalar(230.0), validPixels, Core.CMP_GT)
 
 			val maskNonZeroCount = Core.countNonZero(validPixels)
 			if (maskNonZeroCount == 0) {
@@ -750,12 +741,12 @@ class ImageUtils(context: Context, private val game: Game) {
 					tag,
 					"[WARN] matchAllStatSkillHints - $trainingName - Template appears to be fully transparent; skipping."
 				)
-				return results
+				return null
 			}
 
 			// 2. Perform a single masked template match
-			val result = Mat()
-			Imgproc.matchTemplate(srcGray, templateGray, result, Imgproc.TM_CCORR_NORMED, validPixels)
+			val matchTemplateResult = Mat()
+			Imgproc.matchTemplate(srcGray, templateGray, matchTemplateResult, Imgproc.TM_CCORR_NORMED, validPixels)
 
 			val w = templateGray.cols()
 			val h = templateGray.rows()
@@ -764,7 +755,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			while (true) {
 				if (!BotService.isRunning) throw InterruptedException()
 
-				val mmr = Core.minMaxLoc(result)
+				val mmr = Core.minMaxLoc(matchTemplateResult)
 				val matchValConfidence = mmr.maxVal
 				if (matchValConfidence < minMatchConfidence) {
 					Log.d(
@@ -787,7 +778,13 @@ class ImageUtils(context: Context, private val game: Game) {
 				val maskedDiff = Mat()
 				diff.copyTo(maskedDiff, validPixels)
 				val eqMask = Mat()
-				Imgproc.threshold(maskedDiff, eqMask, pixelTolerance, 255.0, Imgproc.THRESH_BINARY_INV)
+				Imgproc.threshold(
+					maskedDiff,
+					eqMask,
+					pixelTolerance,
+					255.0,
+					Imgproc.THRESH_BINARY_INV
+				) // 255 where diff<=tol
 				val matchingPixels = Core.countNonZero(eqMask)
 				val pixelMatchRatio = matchingPixels.toDouble() / maskNonZeroCount.toDouble()
 
@@ -797,33 +794,29 @@ class ImageUtils(context: Context, private val game: Game) {
 				if (pixelMatchRatio >= minPixelMatchRatio && pixelCorrelation >= minPixelCorrelation) {
 					val centerX = searchRegionRect.x + x + w / 2
 					val centerY = searchRegionRect.y + y + h / 2
-					val newPoint = Point(centerX.toDouble(), centerY.toDouble())
+					result = Point(centerX.toDouble(), centerY.toDouble())
 
-					// Per-template overlap check to avoid adding duplicates
-					val tooClose = results.any { p ->
-						kotlin.math.abs(newPoint.x - p.x) < (w * 0.5) && kotlin.math.abs(newPoint.y - p.y) < (h * 0.5)
-					}
 
-					if (!tooClose) {
-						results.add(newPoint)
-						Log.d(
-							tag,
-							"[DEBUG] matchAllStatSkillHints - $trainingName - Valid match at ($centerX, $centerY), matchValConfidence=$matchValConfidence (minMatchConfidence=%.2f), pixelMatchRatio=%.3f (minPixelMatchRatio=%.2f), pixelCorrelation=%.3f (min=%.2f)".format(
-								minMatchConfidence,
-								pixelMatchRatio,
-								minPixelMatchRatio,
-								pixelCorrelation,
-								minPixelCorrelation
-							)
+					Log.d(
+						tag,
+						"[DEBUG] matchAllStatSkillHints - $trainingName - Valid match at ($centerX, $centerY), matchValConfidence=$matchValConfidence (minMatchConfidence=%.2f), pixelMatchRatio=%.3f (minPixelMatchRatio=%.2f), pixelCorrelation=%.3f (min=%.2f)".format(
+							minMatchConfidence,
+							pixelMatchRatio,
+							minPixelMatchRatio,
+							pixelCorrelation,
+							minPixelCorrelation
 						)
+					)
 
-						Imgproc.rectangle(
-							debugViz,
-							Point(x.toDouble(), y.toDouble()),
-							Point((x + w).toDouble(), (y + h).toDouble()),
-							Scalar(255.0), 2
-						)
-					}
+					// DEBUG
+					Imgproc.rectangle(
+						debugViz,
+						Point(x.toDouble(), y.toDouble()),
+						Point((x + w).toDouble(), (y + h).toDouble()),
+						Scalar(255.0), 2
+					)
+
+					break
 				} else {
 					Log.d(
 						tag,
@@ -840,12 +833,12 @@ class ImageUtils(context: Context, private val game: Game) {
 				// Suppress this region in the result map to prevent re-matching
 				val rx0 = max(0, x - w + 1)
 				val ry0 = max(0, y - h + 1)
-				val rx1 = kotlin.math.min(result.cols() - 1, x + w - 1)
-				val ry1 = kotlin.math.min(result.rows() - 1, y + h - 1)
+				val rx1 = kotlin.math.min(matchTemplateResult.cols() - 1, x + w - 1)
+				val ry1 = kotlin.math.min(matchTemplateResult.rows() - 1, y + h - 1)
 				val rw = max(0, rx1 - rx0 + 1)
 				val rh = max(0, ry1 - ry0 + 1)
 				if (rw > 0 && rh > 0) {
-					result.submat(Rect(rx0, ry0, rw, rh)).setTo(Scalar(0.0))
+					matchTemplateResult.submat(Rect(rx0, ry0, rw, rh)).setTo(Scalar(0.0))
 				}
 
 				// Release per-loop Mats
@@ -854,18 +847,13 @@ class ImageUtils(context: Context, private val game: Game) {
 				maskedDiff.release()
 				eqMask.release()
 			}
-			result.release()
+			matchTemplateResult.release()
 
 		} finally {
 			saveDebugImage(matchFilePath, "matchAllStatSkillHints_${trainingName}", debugViz)
-//			Imgcodecs.imwrite(
-//				"$matchFilePath/matchAllStatSkillHints_${trainingName}.png",
-//				debugViz
-//			)
 			debugViz.release()
 
 			// 4. Final Cleanup
-			fullSourceMat.release()
 			workingMat.release()
 			srcGray.release()
 			templateMat.release()
@@ -875,7 +863,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			splitChannels.forEach { it.release() }
 		}
 
-		return results
+		return result
 	}
 
 	/**
@@ -1135,41 +1123,6 @@ class ImageUtils(context: Context, private val game: Game) {
 		}
 
 		return false
-	}
-
-	/**
-	 * Finds all occurrences of the specified image in the images folder.
-	 *
-	 * @param trainingName Name of the training category being processed (logging/debugging).
-	 * @param templateName File name of the template image (logging/debugging).
-	 * @param region Specify the region consisting of (x, y, width, height) of the source screenshot to template match. Defaults to (0, 0, 0, 0) which is equivalent to searching the full image.
-	 * @return An ArrayList of Point objects containing all the occurrences of the specified image or null if not found.
-	 */
-	fun findAllStatSkillHints(
-		trainingName: String,
-		templateName: String,
-		region: IntArray = intArrayOf(0, 0, 0, 0)
-	): ArrayList<Point> {
-		val (sourceBitmap, templateBitmap) = getBitmaps(templateName)
-
-		if (templateBitmap != null) {
-			val matchLocations =
-				matchAllStatSkillHints(trainingName, sourceBitmap, templateName, templateBitmap, region = region)
-
-			// Sort the match locations by ascending x and y coordinates.
-			matchLocations.sortBy { it.x }
-			matchLocations.sortBy { it.y }
-
-//			if (debugMode) {
-//				game.printToLog("[DEBUG] Found match locations for $templateName: $matchLocations.", tag = tag)
-//			} else {
-//				Log.d(tag, "[DEBUG] Found match locations for $templateName: $matchLocations.")
-//			}
-
-			return matchLocations
-		}
-
-		return arrayListOf()
 	}
 
 	/**
@@ -1952,11 +1905,12 @@ class ImageUtils(context: Context, private val game: Game) {
 	/**
 	 * Analyze the relationship bars on the Training screen for the currently selected training. Parameter is optional to allow for thread-safe operations.
 	 *
+	 * @param trainingName Name of the training category being processed (logging/debugging).
 	 * @param sourceBitmap Bitmap of the source image separately taken. Defaults to null.
 	 *
 	 * @return A list of the results for each relationship bar.
 	 */
-	fun analyzeRelationshipBars(sourceBitmap: Bitmap? = null): ArrayList<BarFillResult> {
+	fun analyzeRelationshipBars(trainingName: String, sourceBitmap: Bitmap? = null): ArrayList<RelationshipBarResult> {
 		val customRegion =
 			intArrayOf(displayWidth - (displayWidth / 3), 0, (displayWidth / 3), displayHeight - (displayHeight / 3))
 
@@ -2011,7 +1965,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			latch.await(10, TimeUnit.SECONDS)
 		} catch (_: InterruptedException) {
 			game.printToLog(
-				"[ERROR] analyzeRelationshipBars - Parallel findAll operations timed out.",
+				"[ERROR - $trainingName] analyzeRelationshipBars - Parallel findAll operations timed out.",
 				tag = tag,
 				isError = true
 			)
@@ -2040,13 +1994,40 @@ class ImageUtils(context: Context, private val game: Game) {
 		val orangeUpper = Scalar(130.0, 255.0, 255.0)
 
 		val (_, maxedTemplateBitmap) = getBitmaps("stat_maxed")
-		val results = arrayListOf<BarFillResult>()
+		val results = arrayListOf<RelationshipBarResult>()
+
+		var skillHintTemplateBitmap: Bitmap?
+		myContext.assets?.open("images/stat_skill_hint.png").use { inputStream ->
+			skillHintTemplateBitmap = BitmapFactory.decodeStream(inputStream)
+		}
 
 		for ((index, statBlock) in allStatBlocks.withIndex()) {
+			var skillHintLocation: Point? = null
+
 			if (debugMode) game.printToLog(
-				"[DEBUG] analyzeRelationshipBars - Processing stat block #${index + 1} at position: (${statBlock.x}, ${statBlock.y})",
+				"[DEBUG - $trainingName] analyzeRelationshipBars - Processing stat block #${index + 1} at position: (${statBlock.x}, ${statBlock.y})",
 				tag = tag
 			)
+
+			if (skillHintTemplateBitmap != null) {
+				val skillHintCroppedBitmap = createSafeBitmap(
+					sourceBitmap,
+					relX(statBlock.x, 0),
+					relY(statBlock.y, -100),
+					160,
+					130,
+					"analyzeRelationshipBars skill hint stat block ${index + 1}"
+				)
+
+				if (skillHintCroppedBitmap != null) {
+					skillHintLocation =
+						matchAllStatSkillHints(
+							trainingName,
+							skillHintCroppedBitmap,
+							skillHintTemplateBitmap
+						)
+				}
+			}
 
 			val croppedBitmap = createSafeBitmap(
 				sourceBitmap,
@@ -2058,7 +2039,7 @@ class ImageUtils(context: Context, private val game: Game) {
 			)
 			if (croppedBitmap == null) {
 				game.printToLog(
-					"[ERROR] analyzeRelationshipBars - Failed to create cropped bitmap for stat block #${index + 1}.",
+					"[ERROR - $trainingName] analyzeRelationshipBars - Failed to create cropped bitmap for stat block #${index + 1}.",
 					tag = tag,
 					isError = true
 				)
@@ -2070,10 +2051,10 @@ class ImageUtils(context: Context, private val game: Game) {
 				// Skip if the relationship bar is already maxed.
 //				if (debugMode)
 				game.printToLog(
-					"[DEBUG] analyzeRelationshipBars - Relationship bar #${index + 1} is full.",
+					"[DEBUG - $trainingName] analyzeRelationshipBars - Relationship bar #${index + 1} is full.",
 					tag = tag
 				)
-				results.add(BarFillResult(100.0, 5, "orange"))
+				results.add(RelationshipBarResult(100.0, 5, "orange", skillHintLocation))
 				continue
 			}
 
@@ -2127,10 +2108,10 @@ class ImageUtils(context: Context, private val game: Game) {
 
 //			if (debugMode)
 			game.printToLog(
-				"[DEBUG] analyzeRelationshipBars - Relationship bar #${index + 1} is $fillPercent% filled with $filledSegments filled segments and the dominant color is $dominantColor",
+				"[DEBUG - $trainingName] analyzeRelationshipBars - Relationship bar #${index + 1} is $fillPercent% filled with $filledSegments filled segments and the dominant color is $dominantColor",
 				tag = tag
 			)
-			results.add(BarFillResult(fillPercent, filledSegments, dominantColor))
+			results.add(RelationshipBarResult(fillPercent, filledSegments, dominantColor, skillHintLocation))
 		}
 
 		return results
@@ -2768,7 +2749,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		Core.split(templateMat, splitChannels)
 		val alphaMask = splitChannels[3] // 4th channel is alpha in both RGBA and BGRA
 		val validPixels = Mat()
-		Core.compare(alphaMask, Scalar(200.0), validPixels, Core.CMP_GT) // 255 where alpha > 0
+		Core.compare(alphaMask, Scalar(230.0), validPixels, Core.CMP_GT)
 
 		// Transparency ratio sanity check
 		val nonZeroAlpha = Core.countNonZero(alphaMask)
