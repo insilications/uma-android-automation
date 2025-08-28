@@ -536,6 +536,11 @@ class ImageUtils(context: Context, private val game: Game) {
 		var resultMat = Mat()
 		var clampedTemplateMat: Mat? = null
 
+		val debugMat = Mat()
+		Utils.bitmapToMat(srcBitmap, debugMat)
+		saveDebugImage(matchFilePath, "matchAll_debugMat.png", debugMat)
+		debugMat.release()
+
 		// Set templateMat at whatever scale it found the very first match for the next while loop.
 		while (!matchCheck && scales.isNotEmpty()) {
 			newScale = decimalFormat.format(scales.removeAt(0)).toDouble()
@@ -665,13 +670,13 @@ class ImageUtils(context: Context, private val game: Game) {
 					20
 				)
 
-				if (debugMode) {
-					game.printToLog(
-						"[DEBUG] Match All found with $minVal <= ${1.0 - setConfidence} at Point $matchLocation with scale: $newScale.",
-						tag = tag
-					)
-					Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
-				}
+//				if (debugMode) {
+				game.printToLog(
+					"[DEBUG] Match All found with $minVal <= ${1.0 - setConfidence} at Point $matchLocation with scale: $newScale.",
+					tag = tag
+				)
+				Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
+//				}
 
 				// Center the location coordinates and then save it.
 				tempMatchLocation.x += (clampedTemplateMat.cols() / 2)
@@ -714,13 +719,13 @@ class ImageUtils(context: Context, private val game: Game) {
 					20
 				)
 
-				if (debugMode) {
-					game.printToLog(
-						"[DEBUG] Match All found with $maxVal >= $setConfidence at Point $matchLocation with scale: $newScale.",
-						tag = tag
-					)
-					Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
-				}
+//				if (debugMode) {
+				game.printToLog(
+					"[DEBUG] Match All found with $maxVal >= $setConfidence at Point $matchLocation with scale: $newScale.",
+					tag = tag
+				)
+				Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
+//				}
 
 				// Center the location coordinates and then save it.
 				tempMatchLocation.x += (clampedTemplateMat.cols() / 2)
@@ -3076,5 +3081,38 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		// Return the correlation coefficient, handling division by zero.
 		return if (den == 0.0) 0.0 else num / den
+	}
+
+	/**
+	 * Finds a unique file path by appending a counter if the original path already exists.
+	 *
+	 * @param directory The directory where the file should be saved.
+	 * @param fileName The original name of the file without the extension.
+	 * @param extension The file extension (e.g., "png").
+	 * @return A unique, absolute path for the new file.
+	 */
+	private fun findUniqueFilePath(directory: String, fileName: String, extension: String): String {
+		val originalFile = File(directory, "$fileName.$extension")
+
+		// Best case: The original path is available. No loop needed.
+		if (!originalFile.exists()) {
+			return originalFile.absolutePath
+		}
+
+		// If the original exists, start searching for a unique name.
+		var counter = 1
+		var newFile: File
+		do {
+			val newFileName = "${fileName}_${counter}.${extension}"
+			newFile = File(directory, newFileName)
+			counter++
+		} while (newFile.exists())
+
+		return newFile.absolutePath
+	}
+
+	fun saveDebugImage(matchFilePath: String, fileName: String, debugMat: Mat) {
+		val uniqueFilePath = findUniqueFilePath(matchFilePath, fileName, "png")
+		Imgcodecs.imwrite(uniqueFilePath, debugMat)
 	}
 }
