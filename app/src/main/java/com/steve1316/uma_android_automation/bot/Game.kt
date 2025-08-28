@@ -1130,7 +1130,7 @@ class Game(val myContext: Context) {
 					if (training.statGains.sum() > 40) score += 200.0
 				}
 			}
-
+			
 			// Bonuses for skill hints.
 			val skillHintLocations = imageUtils.findAll(
 				"stat_skill_hint",
@@ -1211,7 +1211,7 @@ class Game(val myContext: Context) {
 			}
 
 			printToLog(
-				"[TRAINING - $trainingName] Scores | Target Stat: ${
+				"[TRAINING - $trainingName] Preferred Distance: $preferredDistance | Target Stat: ${
 					target[trainings.indexOf(
 						trainingName
 					)]

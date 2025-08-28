@@ -116,11 +116,10 @@ class MyAccessibilityService : AccessibilityService() {
 			confirmationOverlayView = layoutInflater.inflate(R.layout.overlay_confirmation, null)
 
 			val params = WindowManager.LayoutParams(
-				// ... (same params as before)
 				WindowManager.LayoutParams.WRAP_CONTENT,
 				WindowManager.LayoutParams.WRAP_CONTENT,
 				WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-				0,
+				WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
 				PixelFormat.TRANSLUCENT
 			).apply { gravity = Gravity.CENTER }
 

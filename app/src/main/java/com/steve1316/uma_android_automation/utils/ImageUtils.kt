@@ -443,331 +443,205 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	/**
-	 * Search through the whole source screenshot for all matches to the template image.
+	 * Search through a specified region of the source screenshot for all valid matches to a template image,
+	 * leveraging transparency for accurate, non-rectangular matching.
 	 *
-	 * @param sourceBitmap Bitmap from the /files/temp/ folder.
-	 * @param templateBitmap Bitmap from the assets folder.
-	 * @param region Specify the region consisting of (x, y, width, height) of the source screenshot to template match. Defaults to (0, 0, 0, 0) which is equivalent to searching the full image.
-	 * @param customConfidence Specify a custom confidence. Defaults to the confidence set in the app's settings.
-	 * @return ArrayList of Point objects that represents the matches found on the source screenshot.
+	 * This method uses a reliable, multi-stage approach:
+	 * 1. A single masked template match is performed to generate a confidence map.
+	 * 2. A non-maximum suppression loop iterates through the confidence map to find all potential match peaks.
+	 * 3. Each peak is subjected to two rigorous validation checks against the source image:
+	 *    a) Pixel Match Ratio: Ensures a high percentage of non-transparent pixels match within a tolerance.
+	 *    b) Masked Correlation: Calculates a Pearson correlation coefficient on non-transparent pixels only.
+	 * 4. This avoids the pitfalls of modifying the source image and is highly efficient for finding multiple objects.
+	 *
+	 * NOTE: This function requires the templateBitmap to have a transparency channel (4-channel RGBA).
+	 * It also assumes the template is at the correct scale; multi-scale searching is not performed.
+	 *
+	 * @param sourceBitmap The full source image to search within.
+	 * @param templateName File name of the template image.
+	 * @param templateBitmap The template image to find. Must be a 4-channel Bitmap (e.g., ARGB_8888).
+	 * @param region An array specifying the [x, y, width, height] of the source screenshot to search in.
+	 *               If the region is [0, 0, 0, 0] or invalid, the full image is searched.
+	 * @param minMatchConfidence The minimum correlation score from the initial `matchTemplate` call to be considered a potential match (range [0.0, 1.0]).
+	 * @param minPixelMatchRatio The minimum ratio of pixels that must match within the `pixelTolerance` for a match to be considered valid (range [0.0, 1.0]).
+	 * @param minPixelCorrelation The minimum Pearson correlation coefficient on the masked region for a match to be valid (range [-1.0, 1.0]).
+	 * @return An ArrayList of Point objects representing the center coordinates of each valid match found.
 	 */
 	private fun matchAll(
 		sourceBitmap: Bitmap,
+		templateName: String,
 		templateBitmap: Bitmap,
 		region: IntArray = intArrayOf(0, 0, 0, 0),
-		customConfidence: Double = 0.0
+		minMatchConfidence: Double = 0.95,
+		minPixelMatchRatio: Double = 0.9,
+		minPixelCorrelation: Double = 0.85
 	): java.util.ArrayList<Point> {
-		// Create a local matchLocations list for this method
-		var matchLocation = Point()
-		val matchLocations = arrayListOf<Point>()
+		val pixelTolerance = 25.0 // Intensity tolerance [0..255] for "equal" pixels
+		val results = java.util.ArrayList<Point>()
 
-		// If a custom region was specified, crop the source screenshot.
-		val srcBitmap = if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
-			// Validate region bounds to prevent IllegalArgumentException with creating a crop area that goes beyond the source Bitmap.
-			val x = max(0, region[0].coerceAtMost(sourceBitmap.width))
-			val y = max(0, region[1].coerceAtMost(sourceBitmap.height))
-			val width = region[2].coerceAtMost(sourceBitmap.width - x)
-			val height = region[3].coerceAtMost(sourceBitmap.height - y)
+		// 1. Prepare Source and Template Mats
+		val fullSourceMat = Mat()
+		Utils.bitmapToMat(sourceBitmap, fullSourceMat)
+		if (fullSourceMat.empty()) {
+			Log.e(tag, "[ERROR] matchAll - Could not convert sourceBitmap to Mat.")
+			return results
+		}
 
-			Log.d(
-				tag,
-				"[DEBUG] matchAll - sourceBitmap.width: ${sourceBitmap.width}, sourceBitmap.height: ${sourceBitmap.height}"
-			)
-			Log.d(
-				tag,
-				"[DEBUG] matchAll - sourceBitmap.width - x: ${sourceBitmap.width - x}, sourceBitmap.height - y: ${sourceBitmap.height - y}"
-			)
-			Log.d(tag, "[DEBUG] matchAll - x: $x, y: $y, width: $width, height: $height")
-
-			createSafeBitmap(sourceBitmap, x, y, width, height, "matchAll region crop") ?: sourceBitmap
+		// Handle region cropping
+		val searchRegionRect = if (region.size == 4 && region[2] > 0 && region[3] > 0) {
+			val x = max(0, region[0]).coerceAtMost(fullSourceMat.cols() - 1)
+			val y = max(0, region[1]).coerceAtMost(fullSourceMat.rows() - 1)
+			val width = region[2].coerceAtMost(fullSourceMat.cols() - x)
+			val height = region[3].coerceAtMost(fullSourceMat.rows() - y)
+			Rect(x, y, width, height)
 		} else {
-			sourceBitmap
+			Rect(0, 0, fullSourceMat.cols(), fullSourceMat.rows())
 		}
 
-		// Scale images if the device is not 1080p which is supported by default.
-		val scales: MutableList<Double> = when {
-			customScale != 1.0 -> {
-				mutableListOf(
-					customScale - 0.02,
-					customScale - 0.01,
-					customScale,
-					customScale + 0.01,
-					customScale + 0.02,
-					customScale + 0.03,
-					customScale + 0.04
-				)
-			}
+		val workingMat = Mat(fullSourceMat, searchRegionRect)
+		val srcGray = Mat()
+		Imgproc.cvtColor(workingMat, srcGray, Imgproc.COLOR_BGR2GRAY)
 
-			isLowerEnd -> {
-				lowerEndScales.toMutableList()
-			}
-
-			!isLowerEnd && !isDefault && !isTablet -> {
-				middleEndScales.toMutableList()
-			}
-
-			isTablet && isSplitScreen && isLandscape -> {
-				tabletSplitLandscapeScales.toMutableList()
-			}
-
-			isTablet && isSplitScreen && !isLandscape -> {
-				tabletSplitPortraitScales.toMutableList()
-			}
-
-			isTablet && !isSplitScreen && !isLandscape -> {
-				tabletPortraitScales.toMutableList()
-			}
-
-			else -> {
-				mutableListOf(1.0)
-			}
-		}
-
-		val setConfidence: Double = if (customConfidence == 0.0) {
-			confidence
-		} else {
-			customConfidence
-		}
-
-		var matchCheck = false
-		var newScale = 0.0
-		val sourceMat = Mat()
 		val templateMat = Mat()
-		var resultMat = Mat()
-		var clampedTemplateMat: Mat? = null
+		val templateGray = Mat()
+		val alphaMask = Mat()
+		val validPixels = Mat()
+		val splitChannels = ArrayList<Mat>(4)
 
-		val debugMat = Mat()
-		Utils.bitmapToMat(srcBitmap, debugMat)
-		saveDebugImage(matchFilePath, "matchAll_debugMat.png", debugMat)
-		debugMat.release()
+		try {
+			Utils.bitmapToMat(templateBitmap, templateMat, true)
 
-		// Set templateMat at whatever scale it found the very first match for the next while loop.
-		while (!matchCheck && scales.isNotEmpty()) {
-			newScale = decimalFormat.format(scales.removeAt(0)).toDouble()
-
-			val tmp: Bitmap = if (newScale != 1.0) {
-				templateBitmap.scale(
-					(templateBitmap.width * newScale).toInt(),
-					(templateBitmap.height * newScale).toInt()
-				)
-			} else {
-				templateBitmap
+			if (templateMat.channels() != 4) {
+				Log.e(tag, "[ERROR] matchAll - Template must have transparency (4 channels).")
+				return results
 			}
 
-			// Create the Mats of both source and template images.
-			Utils.bitmapToMat(srcBitmap, sourceMat)
-			Utils.bitmapToMat(tmp, templateMat)
-
-			// Clamp template dimensions to source dimensions if template is too large.
-			clampedTemplateMat = if (templateMat.cols() > sourceMat.cols() || templateMat.rows() > sourceMat.rows()) {
-				Log.d(
-					tag,
-					"Image sizes for matchAll assertion failed - sourceMat: ${sourceMat.size()}, templateMat: ${templateMat.size()}"
-				)
-				// Create a new Mat with clamped dimensions.
-				val clampedWidth = minOf(templateMat.cols(), sourceMat.cols())
-				val clampedHeight = minOf(templateMat.rows(), sourceMat.rows())
-				Mat(templateMat, Rect(0, 0, clampedWidth, clampedHeight))
-			} else {
-				templateMat
+			// Clamp template size to source region size
+			if (templateMat.cols() > srcGray.cols() || templateMat.rows() > srcGray.rows()) {
+				Log.w(tag, "[WARN] matchAll - Template is larger than the search region. It will not be found.")
+				return results
 			}
 
-			// Make the Mats grayscale for the source and the template.
-			Imgproc.cvtColor(sourceMat, sourceMat, Imgproc.COLOR_BGR2GRAY)
-			Imgproc.cvtColor(clampedTemplateMat, clampedTemplateMat, Imgproc.COLOR_BGR2GRAY)
+			Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_BGR2GRAY)
+			Core.split(templateMat, splitChannels)
+			splitChannels[3].copyTo(alphaMask) // 4th channel is alpha
+			Core.compare(alphaMask, Scalar(200.0), validPixels, Core.CMP_GT)
 
-			// Create the result matrix.
-			val resultColumns: Int = sourceMat.cols() - clampedTemplateMat.cols() + 1
-			val resultRows: Int = sourceMat.rows() - clampedTemplateMat.rows() + 1
-			if (resultColumns < 0 || resultRows < 0) {
-				break
+			val maskNonZeroCount = Core.countNonZero(validPixels)
+			if (maskNonZeroCount == 0) {
+				Log.w(tag, "[WARN] matchAll - Template appears to be fully transparent; skipping.")
+				return results
 			}
 
-			resultMat = Mat(resultRows, resultColumns, CvType.CV_32FC1)
+			// 2. Perform a single masked template match
+			val result = Mat()
+			Imgproc.matchTemplate(srcGray, templateGray, result, Imgproc.TM_CCORR_NORMED, validPixels)
 
-			// Now perform the matching and localize the result.
-			Imgproc.matchTemplate(sourceMat, clampedTemplateMat, resultMat, matchMethod)
-			val mmr: Core.MinMaxLocResult = Core.minMaxLoc(resultMat)
+			val w = templateGray.cols()
+			val h = templateGray.rows()
 
-			// Depending on which matching method was used, the algorithms determine which location was the best.
-			if ((matchMethod == Imgproc.TM_SQDIFF || matchMethod == Imgproc.TM_SQDIFF_NORMED) && mmr.minVal <= (1.0 - setConfidence)) {
-				matchLocation = mmr.minLoc
-				matchCheck = true
+			// 3. NMS Loop to find and validate all peaks
+			while (true) {
+				if (!BotService.isRunning) throw InterruptedException()
 
-				// Draw a rectangle around the match on the source Mat. This will prevent false positives and infinite looping on subsequent matches.
-				Imgproc.rectangle(
-					sourceMat,
-					matchLocation,
-					Point(matchLocation.x + clampedTemplateMat.cols(), matchLocation.y + clampedTemplateMat.rows()),
-					Scalar(0.0, 0.0, 0.0),
-					20
-				)
-
-				// Center the location coordinates and then save it.
-				matchLocation.x += (clampedTemplateMat.cols() / 2)
-				matchLocation.y += (clampedTemplateMat.rows() / 2)
-
-				// If a custom region was specified, readjust the coordinates to reflect the fullscreen source screenshot.
-				if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
-					matchLocation.x = sourceBitmap.width - (sourceBitmap.width - (region[0] + matchLocation.x))
-					matchLocation.y = sourceBitmap.height - (sourceBitmap.height - (region[1] + matchLocation.y))
+				val mmr = Core.minMaxLoc(result)
+				val matchValConfidence = mmr.maxVal
+				if (matchValConfidence < minMatchConfidence) {
+					Log.d(
+						tag,
+						"[DEBUG] matchAll - stopping: next peak $matchValConfidence (matchValConfidence) < $minMatchConfidence (minMatchConfidence)"
+					)
+					break // No more confident matches left
 				}
 
-				matchLocations.add(matchLocation)
-			} else if ((matchMethod != Imgproc.TM_SQDIFF && matchMethod != Imgproc.TM_SQDIFF_NORMED) && mmr.maxVal >= setConfidence) {
-				matchLocation = mmr.maxLoc
-				matchCheck = true
+				val x = mmr.maxLoc.x.toInt()
+				val y = mmr.maxLoc.y.toInt()
+				val matchRect = Rect(x, y, w, h)
 
-				// Draw a rectangle around the match on the source Mat. This will prevent false positives and infinite looping on subsequent matches.
-				Imgproc.rectangle(
-					sourceMat,
-					matchLocation,
-					Point(matchLocation.x + clampedTemplateMat.cols(), matchLocation.y + clampedTemplateMat.rows()),
-					Scalar(0.0, 0.0, 0.0),
-					20
-				)
+				// Extract matched region and perform detailed validation
+				val matchedRegion = Mat(srcGray, matchRect)
 
-				// Center the location coordinates and then save it.
-				matchLocation.x += (clampedTemplateMat.cols() / 2)
-				matchLocation.y += (clampedTemplateMat.rows() / 2)
+				// Validation 1: Pixel-ratio test
+				val diff = Mat()
+				Core.absdiff(matchedRegion, templateGray, diff)
+				val maskedDiff = Mat()
+				diff.copyTo(maskedDiff, validPixels)
+				val eqMask = Mat()
+				Imgproc.threshold(maskedDiff, eqMask, pixelTolerance, 255.0, Imgproc.THRESH_BINARY_INV)
+				val matchingPixels = Core.countNonZero(eqMask)
+				val pixelMatchRatio = matchingPixels.toDouble() / maskNonZeroCount.toDouble()
 
-				// If a custom region was specified, readjust the coordinates to reflect the fullscreen source screenshot.
-				if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
-					matchLocation.x = sourceBitmap.width - (sourceBitmap.width - (region[0] + matchLocation.x))
-					matchLocation.y = sourceBitmap.height - (sourceBitmap.height - (region[1] + matchLocation.y))
+				// Validation 2: Masked correlation test
+				val pixelCorrelation = maskedCorrelation(templateGray, matchedRegion, validPixels)
+
+				if (pixelMatchRatio >= minPixelMatchRatio && pixelCorrelation >= minPixelCorrelation) {
+					val centerX = searchRegionRect.x + x + w / 2
+					val centerY = searchRegionRect.y + y + h / 2
+					val newPoint = Point(centerX.toDouble(), centerY.toDouble())
+
+					// Per-template overlap check to avoid adding duplicates
+					val tooClose = results.any { p ->
+						kotlin.math.abs(newPoint.x - p.x) < (w * 0.5) && kotlin.math.abs(newPoint.y - p.y) < (h * 0.5)
+					}
+
+					if (!tooClose) {
+						results.add(newPoint)
+						Log.d(
+							tag,
+							"[DEBUG] matchAll - Valid match at ($centerX, $centerY), matchValConfidence=$matchValConfidence (minMatchConfidence=%.2f), pixelMatchRatio=%.3f (minPixelMatchRatio=%.2f), pixelCorrelation=%.3f (min=%.2f)".format(
+								minMatchConfidence,
+								pixelMatchRatio,
+								minPixelMatchRatio,
+								pixelCorrelation,
+								minPixelCorrelation
+							)
+						)
+					}
+				} else {
+					Log.d(
+						tag,
+						"[DEBUG] matchAll - Match rejected, matchValConfidence=$matchValConfidence (minMatchConfidence=%.2f), pixelMatchRatio=%.3f (minPixelMatchRatio=%.2f), pixelCorrelation=%.3f (min=%.2f)".format(
+							minMatchConfidence,
+							pixelMatchRatio,
+							minPixelMatchRatio,
+							pixelCorrelation,
+							minPixelCorrelation
+						)
+					)
 				}
 
-				matchLocations.add(matchLocation)
-			}
+				// Suppress this region in the result map to prevent re-matching
+				val rx0 = max(0, x - w + 1)
+				val ry0 = max(0, y - h + 1)
+				val rx1 = kotlin.math.min(result.cols() - 1, x + w - 1)
+				val ry1 = kotlin.math.min(result.rows() - 1, y + h - 1)
+				val rw = max(0, rx1 - rx0 + 1)
+				val rh = max(0, ry1 - ry0 + 1)
+				if (rw > 0 && rh > 0) {
+					result.submat(Rect(rx0, ry0, rw, rh)).setTo(Scalar(0.0))
+				}
 
-			if (!BotService.isRunning) {
-				throw InterruptedException()
+				// Release per-loop Mats
+				matchedRegion.release()
+				diff.release()
+				maskedDiff.release()
+				eqMask.release()
 			}
+			result.release()
+
+		} finally {
+			// 4. Final Cleanup
+			fullSourceMat.release()
+			workingMat.release()
+			srcGray.release()
+			templateMat.release()
+			templateGray.release()
+			alphaMask.release()
+			validPixels.release()
+			splitChannels.forEach { it.release() }
 		}
 
-		// Loop until all other matches are found and break out when there are no more to be found.
-		while (matchCheck) {
-			// Now perform the matching and localize the result.
-			Imgproc.matchTemplate(sourceMat, clampedTemplateMat, resultMat, matchMethod)
-			val mmr: Core.MinMaxLocResult = Core.minMaxLoc(resultMat)
-
-			// Format minVal or maxVal.
-			val minVal: Double = decimalFormat.format(mmr.minVal).toDouble()
-			val maxVal: Double = decimalFormat.format(mmr.maxVal).toDouble()
-
-			if (clampedTemplateMat != null && (matchMethod == Imgproc.TM_SQDIFF || matchMethod == Imgproc.TM_SQDIFF_NORMED) && mmr.minVal <= (1.0 - setConfidence)) {
-				val tempMatchLocation: Point = mmr.minLoc
-
-				// Draw a rectangle around the match on the source Mat. This will prevent false positives and infinite looping on subsequent matches.
-				Imgproc.rectangle(
-					sourceMat,
-					tempMatchLocation,
-					Point(
-						tempMatchLocation.x + clampedTemplateMat.cols(),
-						tempMatchLocation.y + clampedTemplateMat.rows()
-					),
-					Scalar(0.0, 0.0, 0.0),
-					20
-				)
-
-//				if (debugMode) {
-				game.printToLog(
-					"[DEBUG] Match All found with $minVal <= ${1.0 - setConfidence} at Point $matchLocation with scale: $newScale.",
-					tag = tag
-				)
-				Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
-//				}
-
-				// Center the location coordinates and then save it.
-				tempMatchLocation.x += (clampedTemplateMat.cols() / 2)
-				tempMatchLocation.y += (clampedTemplateMat.rows() / 2)
-
-				// If a custom region was specified, readjust the coordinates to reflect the fullscreen source screenshot.
-				if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
-					tempMatchLocation.x = sourceBitmap.width - (sourceBitmap.width - (region[0] + tempMatchLocation.x))
-					tempMatchLocation.y =
-						sourceBitmap.height - (sourceBitmap.height - (region[1] + tempMatchLocation.y))
-				}
-
-				if (!matchLocations.contains(tempMatchLocation) && !matchLocations.contains(
-						Point(
-							tempMatchLocation.x + 1.0,
-							tempMatchLocation.y
-						)
-					) &&
-					!matchLocations.contains(
-						Point(
-							tempMatchLocation.x,
-							tempMatchLocation.y + 1.0
-						)
-					) && !matchLocations.contains(Point(tempMatchLocation.x + 1.0, tempMatchLocation.y + 1.0))
-				) {
-					matchLocations.add(tempMatchLocation)
-				}
-			} else if (clampedTemplateMat != null && (matchMethod != Imgproc.TM_SQDIFF && matchMethod != Imgproc.TM_SQDIFF_NORMED) && mmr.maxVal >= setConfidence) {
-				val tempMatchLocation: Point = mmr.maxLoc
-
-				// Draw a rectangle around the match on the source Mat. This will prevent false positives and infinite looping on subsequent matches.
-				Imgproc.rectangle(
-					sourceMat,
-					tempMatchLocation,
-					Point(
-						tempMatchLocation.x + clampedTemplateMat.cols(),
-						tempMatchLocation.y + clampedTemplateMat.rows()
-					),
-					Scalar(0.0, 0.0, 0.0),
-					20
-				)
-
-//				if (debugMode) {
-				game.printToLog(
-					"[DEBUG] Match All found with $maxVal >= $setConfidence at Point $matchLocation with scale: $newScale.",
-					tag = tag
-				)
-				Imgcodecs.imwrite("$matchFilePath/matchAll.png", sourceMat)
-//				}
-
-				// Center the location coordinates and then save it.
-				tempMatchLocation.x += (clampedTemplateMat.cols() / 2)
-				tempMatchLocation.y += (clampedTemplateMat.rows() / 2)
-
-				// If a custom region was specified, readjust the coordinates to reflect the fullscreen source screenshot.
-				if (!region.contentEquals(intArrayOf(0, 0, 0, 0))) {
-					tempMatchLocation.x = sourceBitmap.width - (sourceBitmap.width - (region[0] + tempMatchLocation.x))
-					tempMatchLocation.y =
-						sourceBitmap.height - (sourceBitmap.height - (region[1] + tempMatchLocation.y))
-				}
-
-				if (!matchLocations.contains(tempMatchLocation) && !matchLocations.contains(
-						Point(
-							tempMatchLocation.x + 1.0,
-							tempMatchLocation.y
-						)
-					) &&
-					!matchLocations.contains(
-						Point(
-							tempMatchLocation.x,
-							tempMatchLocation.y + 1.0
-						)
-					) && !matchLocations.contains(Point(tempMatchLocation.x + 1.0, tempMatchLocation.y + 1.0))
-				) {
-					matchLocations.add(tempMatchLocation)
-				}
-			} else {
-				break
-			}
-
-			if (!BotService.isRunning) {
-				throw InterruptedException()
-			}
-		}
-
-		sourceMat.release()
-		templateMat.release()
-		clampedTemplateMat?.release()
-		resultMat.release()
-
-		return matchLocations
+		return results
 	}
 
 	/**
@@ -1040,7 +914,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		val (sourceBitmap, templateBitmap) = getBitmaps(templateName)
 
 		if (templateBitmap != null) {
-			val matchLocations = matchAll(sourceBitmap, templateBitmap, region = region)
+			val matchLocations = matchAll(sourceBitmap, templateName, templateBitmap, region = region)
 
 			// Sort the match locations by ascending x and y coordinates.
 			matchLocations.sortBy { it.x }
@@ -1077,7 +951,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		}
 
 		if (templateBitmap != null) {
-			val matchLocations = matchAll(sourceBitmap, templateBitmap, region = region)
+			val matchLocations = matchAll(sourceBitmap, templateName, templateBitmap, region = region)
 
 			// Sort the match locations by ascending x and y coordinates.
 			matchLocations.sortBy { it.x }
