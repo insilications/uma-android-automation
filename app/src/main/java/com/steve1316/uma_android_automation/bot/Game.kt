@@ -1005,12 +1005,12 @@ class Game(val myContext: Context) {
 						0.5 // Lower weight for non-prioritized stats.
 					}
 
-					Log.d(tag, "[TRAINING - $trainingName] Priority Weight: $priorityWeight")
+					Log.d(tag, "[TRAINING - $trainingName - $stat] Priority Weight: $priorityWeight")
 
 					// Calculate efficiency based on remaining gap between the current stat and the target.
 					var efficiency = if (remaining > 0) {
 						// Stat is below target, but reduce the bonus when very close to the target.
-						Log.d(tag, "[TRAINING - $trainingName] Giving bonus for remaining efficiency")
+						Log.d(tag, "[TRAINING - $trainingName - $stat] Giving bonus for remaining efficiency")
 						val gapRatio = remaining.toDouble() / targetStat
 						val targetBonus = when {
 							gapRatio > 0.1 -> 1.5
@@ -1020,12 +1020,15 @@ class Game(val myContext: Context) {
 						targetBonus + (statGain.toDouble() / remaining).coerceAtMost(1.0)
 					} else {
 						// Stat is above target, give a diminishing bonus based on how much over.
-						Log.d(tag, "[TRAINING - $trainingName] Stat is above target so giving diminishing bonus")
+						Log.d(
+							tag,
+							"[TRAINING - $trainingName - $stat] Stat is above target so giving diminishing bonus"
+						)
 						val overageRatio = (statGain.toDouble() / (-remaining + statGain))
 						1.0 + overageRatio
 					}
 
-					Log.d(tag, "[TRAINING - $trainingName] Efficiency: $efficiency")
+					Log.d(tag, "[TRAINING - $trainingName - $stat] Efficiency: $efficiency")
 
 					// Apply Spark stat target focus when enabled.
 					if (focusOnSparkStatTarget) {
@@ -1043,7 +1046,7 @@ class Game(val myContext: Context) {
 
 					score += statGain * 2
 					score += (statGain * 2) * (efficiency * priorityWeight)
-					Log.d(tag, "[TRAINING - $trainingName] Score: $score")
+					Log.d(tag, "[TRAINING - $trainingName - $stat] Score: $score")
 				}
 			}
 
@@ -1130,9 +1133,19 @@ class Game(val myContext: Context) {
 					if (training.statGains.sum() > 40) score += 200.0
 				}
 			}
-			
+
 			// Bonuses for skill hints.
-			val skillHintLocations = imageUtils.findAll(
+//			val skillHintLocations = imageUtils.findAll(
+//				"stat_skill_hint",
+//				region = intArrayOf(
+//					MediaProjectionService.displayWidth - (MediaProjectionService.displayWidth / 3),
+//					0,
+//					(MediaProjectionService.displayWidth / 3),
+//					MediaProjectionService.displayHeight - (MediaProjectionService.displayHeight / 3)
+//				)
+//			)
+			val skillHintLocations = imageUtils.findAllStatSkillHints(
+				training.name,
 				"stat_skill_hint",
 				region = intArrayOf(
 					MediaProjectionService.displayWidth - (MediaProjectionService.displayWidth / 3),
@@ -1141,7 +1154,7 @@ class Game(val myContext: Context) {
 					MediaProjectionService.displayHeight - (MediaProjectionService.displayHeight / 3)
 				)
 			)
-			Log.d(tag, "[TRAINING - ${training.name}] Found match locations for $skillHintLocations")
+			Log.d(tag, "[TRAINING - ${training.name}] Found Skill Hint Locations: $skillHintLocations")
 			score += 100.0 * skillHintLocations.size
 
 			return score.coerceIn(0.0, 1000.0)
