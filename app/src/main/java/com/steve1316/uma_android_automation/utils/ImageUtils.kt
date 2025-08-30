@@ -482,7 +482,14 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		// 1. Prepare Source and Template Mats
 		val fullSourceMat = Mat()
-		Utils.bitmapToMat(sourceBitmap, fullSourceMat)
+		// With `unPremultiply = false` we are assuming that the pixels of the `sourceBitmap` capture are always 100% opaque
+		// Scenarios with semi-transparent pixels:
+		// System UI Elements: notification shade, navigation bar, or the status bar can be translucent
+		// Toasts: pop-ups are often semi-transparent
+		// Dialogs: pixels of the background are not fully opaque when a dialog box dims the background
+		// PiP Windows: Pixels used for anti-aliasing along the curved edges have alphas between 0 and 255
+		// In-App UI: Translucent overlays or floating action buttons with shadows are not fully opaque
+		Utils.bitmapToMat(sourceBitmap, fullSourceMat, false)
 		if (fullSourceMat.empty()) {
 			Log.e(tag, "[ERROR] matchAll - $templateName - Could not convert sourceBitmap to Mat.")
 			return results
@@ -501,7 +508,7 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		val workingMat = Mat(fullSourceMat, searchRegionRect)
 		val srcGray = Mat()
-		Imgproc.cvtColor(workingMat, srcGray, Imgproc.COLOR_BGR2GRAY)
+		Imgproc.cvtColor(workingMat, srcGray, Imgproc.COLOR_RGBA2GRAY)
 
 		val templateMat = Mat()
 		val templateGray = Mat()
@@ -526,7 +533,7 @@ class ImageUtils(context: Context, private val game: Game) {
 				return results
 			}
 
-			Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_BGR2GRAY)
+			Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_RGBA2GRAY)
 			Core.split(templateMat, splitChannels)
 			splitChannels[3].copyTo(alphaMask) // 4th channel is alpha
 			Core.compare(alphaMask, Scalar(230.0), validPixels, Core.CMP_GT)
@@ -721,15 +728,6 @@ class ImageUtils(context: Context, private val game: Game) {
 				return null
 			}
 
-			// Clamp template size to source region size
-			if (templateMat.cols() > srcGray.cols() || templateMat.rows() > srcGray.rows()) {
-				Log.w(
-					tag,
-					"[WARN] matchAllStatSkillHints - $trainingName - Template is larger than the search region. It will not be found."
-				)
-				return null
-			}
-
 			Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_RGBA2GRAY)
 			Core.split(templateMat, splitChannels)
 			splitChannels[3].copyTo(alphaMask) // 4th channel is alpha
@@ -792,8 +790,10 @@ class ImageUtils(context: Context, private val game: Game) {
 				val pixelCorrelation = maskedCorrelation(templateGray, matchedRegion, validPixels)
 
 				if (pixelMatchRatio >= minPixelMatchRatio && pixelCorrelation >= minPixelCorrelation) {
-					val centerX = searchRegionRect.x + x + w / 2
-					val centerY = searchRegionRect.y + y + h / 2
+					val centerX: Int = x + w / 2
+					val centerY: Int = y + h / 2
+//					val centerX = searchRegionRect.x + x + w / 2
+//					val centerY = searchRegionRect.y + y + h / 2
 					result = Point(centerX.toDouble(), centerY.toDouble())
 
 
@@ -2565,12 +2565,16 @@ class ImageUtils(context: Context, private val game: Game) {
 
 						// Convert to Mat and then turn it to grayscale.
 						val sourceMat = Mat()
-						Utils.bitmapToMat(croppedBitmap, sourceMat)
-						val sourceGray = Mat()
-						Imgproc.cvtColor(sourceMat, sourceGray, Imgproc.COLOR_BGR2GRAY)
-
-						val workingMat = Mat()
-						sourceGray.copyTo(workingMat)
+						// With `unPremultiply = false` we are assuming that the pixels of the `sourceBitmap` capture are always 100% opaque
+						// Scenarios with semi-transparent pixels:
+						// System UI Elements: notification shade, navigation bar, or the status bar can be translucent
+						// Toasts: pop-ups are often semi-transparent
+						// Dialogs: pixels of the background are not fully opaque when a dialog box dims the background
+						// PiP Windows: Pixels used for anti-aliasing along the curved edges have alphas between 0 and 255
+						// In-App UI: Translucent overlays or floating action buttons with shadows are not fully opaque
+						Utils.bitmapToMat(croppedBitmap, sourceMat, false)
+						val srcGray = Mat()
+						Imgproc.cvtColor(sourceMat, srcGray, Imgproc.COLOR_RGBA2GRAY)
 
 						var matchResults = mutableMapOf<String, MutableList<Point>>()
 						templates.forEach { template ->
@@ -2585,7 +2589,7 @@ class ImageUtils(context: Context, private val game: Game) {
 									trainingName,
 									templateName,
 									templateBitmap,
-									workingMat,
+									srcGray,
 									matchResults
 								)
 							} else {
@@ -2652,8 +2656,8 @@ class ImageUtils(context: Context, private val game: Game) {
 						}
 
 						sourceMat.release()
-						sourceGray.release()
-						workingMat.release()
+						srcGray.release()
+//						workingMat.release()
 					} catch (e: Exception) {
 						game.printToLog(
 							"[ERROR] [$trainingName] Error processing stat ${statNames[i]}: ${e.stackTraceToString()}",
@@ -2700,8 +2704,8 @@ class ImageUtils(context: Context, private val game: Game) {
 	 * @param statName Name of the stat being processed for the current `trainingName` (logging/debugging).
 	 * @param trainingName Name of the training category being processed (logging/debugging).
 	 * @param templateName Name of the template being processed (logging/debugging).
-	 * @param templateBitmap Template bitmap (must be 4-channel RGBA with transparency).
-	 * @param workingMat Grayscale source image to search in (1-channel Mat). If not, it will be converted.
+	 * @param templateBitmap Template bitmap (4-channel RGBA with transparency).
+	 * @param srcGray Grayscale `COLOR_RGBA2GRAY` source image to search in.
 	 * @param matchResults Output map of detections by template name; points are centers of detected boxes.
 	 *
 	 * @return Updated matchResults map with all valid matches for this template.
@@ -2711,7 +2715,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		trainingName: String,
 		templateName: String,
 		templateBitmap: Bitmap,
-		workingMat: Mat,
+		srcGray: Mat,
 		matchResults: MutableMap<String, MutableList<Point>>
 	): MutableMap<String, MutableList<Point>> {
 
@@ -2741,8 +2745,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		}
 
 		// Convert template to grayscale.
-		// RGBA input (Android default) is `Imgproc.COLOR_BGRA2GRAY`. But we use Imgproc.COLOR_BGR2GRAY instead.
-		Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_BGR2GRAY)
+		Imgproc.cvtColor(templateMat, templateGray, Imgproc.COLOR_RGBA2GRAY)
 
 		// Extract alpha and build a binary mask of valid (non-transparent) pixels
 		val splitChannels = ArrayList<Mat>(4)
@@ -2769,17 +2772,6 @@ class ImageUtils(context: Context, private val game: Game) {
 			return matchResults
 		}
 		val maskNonZeroCount = nonZeroAlpha // used for pixel ratio denominator
-
-		// Ensure workingMat is grayscale (1-channel)
-		val srcGray: Mat
-		var releaseSrcGray = false
-		if (workingMat.channels() == 1) {
-			srcGray = workingMat
-		} else {
-			srcGray = Mat()
-			Imgproc.cvtColor(workingMat, srcGray, Imgproc.COLOR_BGR2GRAY)
-			releaseSrcGray = true
-		}
 
 		// Perform one masked template match across the full image
 		val result = Mat()
@@ -2934,7 +2926,6 @@ class ImageUtils(context: Context, private val game: Game) {
 
 		// Cleanup
 		result.release()
-		if (releaseSrcGray) srcGray.release()
 		splitChannels.forEachIndexed { idx, ch -> if (idx != 3) ch.release() } // release non-alpha channels
 		validPixels.release()
 		alphaMask.release()
@@ -3222,11 +3213,10 @@ class ImageUtils(context: Context, private val game: Game) {
 	 *
 	 * @param directory The directory where the file should be saved.
 	 * @param fileName The original name of the file without the extension.
-	 * @param extension The file extension (e.g., "png").
 	 * @return A unique, absolute path for the new file.
 	 */
-	private fun findUniqueFilePath(directory: String, fileName: String, extension: String): String {
-		val originalFile = File(directory, "$fileName.$extension")
+	private fun findUniqueFilePath(directory: String, fileName: String): String {
+		val originalFile = File(directory, "$fileName.png")
 
 		// Best case: The original path is available. No loop needed.
 		if (!originalFile.exists()) {
@@ -3237,7 +3227,7 @@ class ImageUtils(context: Context, private val game: Game) {
 		var counter = 1
 		var newFile: File
 		do {
-			val newFileName = "${fileName}_${counter}.${extension}"
+			val newFileName = "${fileName}_${counter}.png"
 			newFile = File(directory, newFileName)
 			counter++
 		} while (newFile.exists())
@@ -3246,7 +3236,7 @@ class ImageUtils(context: Context, private val game: Game) {
 	}
 
 	fun saveDebugImage(matchFilePath: String, fileName: String, debugMat: Mat) {
-		val uniqueFilePath = findUniqueFilePath(matchFilePath, fileName, "png")
+		val uniqueFilePath = findUniqueFilePath(matchFilePath, fileName)
 		Imgcodecs.imwrite(uniqueFilePath, debugMat)
 	}
 }
