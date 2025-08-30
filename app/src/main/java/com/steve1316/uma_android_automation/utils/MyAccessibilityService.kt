@@ -13,7 +13,6 @@ import android.util.Log
 import android.graphics.*
 import android.widget.Button
 import android.widget.TextView
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.WindowManager
@@ -48,6 +47,18 @@ class MyAccessibilityService : AccessibilityService() {
 		// Other classes need this static reference to this service as calling dispatchGesture() would not work.
 		@SuppressLint("StaticFieldLeak")
 		private lateinit var instance: MyAccessibilityService
+
+		private val confirmationOverlayLayoutParams = WindowManager.LayoutParams().apply {
+			type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+				WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+			} else {
+				WindowManager.LayoutParams.TYPE_SYSTEM_ALERT
+			}
+			flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+			format = PixelFormat.TRANSLUCENT
+			width = WindowManager.LayoutParams.WRAP_CONTENT
+			height = WindowManager.LayoutParams.WRAP_CONTENT
+		}
 
 		/**
 		 * Returns a static reference to this class.
@@ -115,13 +126,13 @@ class MyAccessibilityService : AccessibilityService() {
 			val layoutInflater = LayoutInflater.from(this)
 			confirmationOverlayView = layoutInflater.inflate(R.layout.overlay_confirmation, null)
 
-			val params = WindowManager.LayoutParams(
-				WindowManager.LayoutParams.WRAP_CONTENT,
-				WindowManager.LayoutParams.WRAP_CONTENT,
-				WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-				WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
-				PixelFormat.TRANSLUCENT
-			).apply { gravity = Gravity.CENTER }
+//			val params = WindowManager.LayoutParams(
+//				WindowManager.LayoutParams.WRAP_CONTENT,
+//				WindowManager.LayoutParams.WRAP_CONTENT,
+//				WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+//				WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+//				PixelFormat.TRANSLUCENT
+//			).apply { gravity = Gravity.CENTER }
 
 			confirmationOverlayView?.let { view ->
 				val messageTextView = view.findViewById<TextView>(R.id.tv_overlay_message)
@@ -151,7 +162,7 @@ class MyAccessibilityService : AccessibilityService() {
 					hideConfirmationOverlay()
 				}
 
-				windowManager.addView(view, params)
+				windowManager.addView(view, confirmationOverlayLayoutParams)
 			}
 		}
 	}

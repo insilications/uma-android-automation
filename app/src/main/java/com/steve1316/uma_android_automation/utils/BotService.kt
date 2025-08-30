@@ -73,7 +73,7 @@ class BotService : Service() {
 			windowAnimations = android.R.style.Animation_Toast
 		}
 
-		var isRunning = false
+		public var isRunning = false
 	}
 
 	@SuppressLint("ClickableViewAccessibility", "InflateParams")
@@ -272,7 +272,7 @@ class BotService : Service() {
 	/**
 	 * Start the appropriate animations for the floating overlay button based on the bot state.
 	 */
-	private fun startAnimations() {
+	internal fun startAnimations() {
 		// Clear any existing animation.
 		overlayButton.clearAnimation()
 
@@ -312,7 +312,7 @@ class BotService : Service() {
 	/**
 	 * Perform cleanup upon app completion or encountering an Exception.
 	 */
-	private fun performCleanUp() {
+	internal fun performCleanUp() {
 		// Save the message log.
 		MessageLog.saveLogToFile(myContext)
 
